@@ -16,10 +16,15 @@ matrix:
 notifications:
   email: false
 
+branches:
+  only:
+    - master
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/ # tags
+
 script: # the default script is equivalent to the following
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-  - julia -e 'Pkg.clone(pwd()); Pkg.build("QPSReader"); Pkg.test("QPSReader"; coverage=true)';
+  - julia -e 'using Pkg; Pkg.clone(pwd()); Pkg.build("QPSReader"); Pkg.test("QPSReader"; coverage=true)';
 
 after_success:
-  - julia -e 'cd(Pkg.dir("QPSReader")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())';
-  - julia -e 'cd(Pkg.dir("QPSReader")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())';
+  - julia -e 'using Pkg; cd(Pkg.dir("QPSReader")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())';
+  - julia -e 'using Pkg; cd(Pkg.dir("QPSReader")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())';
