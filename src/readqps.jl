@@ -528,7 +528,7 @@ function readqps(filename::String)
             bounds_section_read && error("more than one BOUNDS section specified")
             columns_section_read || error("COLUMNS section must come before BOUNDS section")
             lvar, uvar = read_bounds_section(qps, varnames)
-            bound_section_read = true
+            bounds_section_read = true
             # @show lvar
             # @show uvar
         end
