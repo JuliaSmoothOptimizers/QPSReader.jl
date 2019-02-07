@@ -1,0 +1,20 @@
+{
+  "description": "A package to read linear optimization problems in fixes MPS format and quadratic problems in QPS format",
+  "title": "QPSReader.jl",
+  "upload_type": "software",
+  "publication_date": "2019-02-07",
+  "creators": [
+    {
+      "affiliation": "\u00c9cole Polytechnique/GERAD - Montr\u00e9al",
+      "name": "Dominique Orban"
+    }
+  ],
+  "access_right": "open",
+  "related_identifiers": [
+    {
+      "scheme": "url",
+      "identifier": "https://github.com/JuliaSmoothOptimizers/QPSReader.jl/releases/latest",
+      "relation": "isSupplementTo"
+    }
+  ]
+}
