@@ -4,8 +4,8 @@ using QPSReader, NLPModels, NLPModelsIpopt, QuadraticModels, LinearOperators
 
 # download qps files
 
-for PROBLEM in [GENHS28.SIF HS76.SIF QPTEST.SIF]
-  run (`wget https://bitbucket.org/optrove/maros-meszaros/raw/9adfb5707b1e0b83a2e0a26cc8310704ff01b7c1/$PROBLEM`)
+for PROBLEM in ["GENHS28.SIF", "HS76.SIF", "QPTEST.SIF"]
+  run(`wget https://bitbucket.org/optrove/maros-meszaros/raw/9adfb5707b1e0b83a2e0a26cc8310704ff01b7c1/$PROBLEM`)
 end
 
 problems = ["GENHS28.SIF"; "HS76.SIF"; "QPTEST.SIF"]
