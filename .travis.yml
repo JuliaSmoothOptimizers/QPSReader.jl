@@ -24,7 +24,7 @@ branches:
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/ # tags
 
 before_install:
-- julia -e 'using Pkg; pkg"clone QuadraticModels v0.1.0";
+- julia -e 'using Pkg; pkg"clone https://github.com/RenanOD/QuadraticModels.jl/tree/add_missing_methods_and_tests";
 
 after_success:
   - julia -e 'using Pkg; cd(Pkg.dir("QPSReader")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())';
