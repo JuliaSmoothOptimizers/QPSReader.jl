@@ -1,7 +1,8 @@
 # QPSReader
 
 Linux and macOS: [![Build Status](https://travis-ci.org/JuliaSmoothOptimizers/QPSReader.jl.svg?branch=master)](https://travis-ci.org/JuliaSmoothOptimizers/QPSReader.jl)
-Windows: [![Build Status](https://ci.appveyor.com/api/projects/status/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master&svg=true)](https://ci.appveyor.com/project/tkelman/example-jl/branch/master)
+Windows: [![Build status](https://ci.appveyor.com/api/projects/status/mntnshay4xud7t8t?svg=true)](https://ci.appveyor.com/project/dpo/qpsreader-jl)
+FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl.svg)](https://cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl)
 [![Coverage Status](https://coveralls.io/repos/JuliaSmoothOptimizers/QPSReader.jl/badge.svg?branch=master)](https://coveralls.io/r/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
 [![codecov.io](http://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
 
