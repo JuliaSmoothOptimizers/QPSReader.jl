@@ -18,11 +18,11 @@ mutable struct QPSData
     # Quadratic objective, in COO format
     qrows::Vector{Int}
     qcols::Vector{Int}
-    qvals::Vector{Int}
+    qvals::Vector{Float64}
     # Constraint matrix, in COO format
     arows::Vector{Int}
     acols::Vector{Int}
-    avals::Vector{Int}
+    avals::Vector{Float64}
     lcon::Vector{Float64}            # constraints lower bounds
     ucon::Vector{Float64}            # constraints upper bounds
     lvar::Vector{Float64}            # variables lower bounds
@@ -45,12 +45,12 @@ function is_section_header(line)
             end
         end
     end
-    false
+    return false
 end
 
 function read_name_section(qps, rest)
     # @debug "reading name section"
-    rest  # simply return the problem name
+    return rest  # simply return the problem name
 end
 
 function read_objsense_section(qps)
@@ -75,7 +75,7 @@ function read_objsense_section(qps)
         pos = position(qps)
     end
     seek(qps, pos) # backtrack to beginning of line
-    objsense
+    return objsense
 end
 
 function read_rows_section(qps)
@@ -113,7 +113,7 @@ function read_rows_section(qps)
     end
     seek(qps, pos) # backtrack to beginning of line
     # @show contypes
-    objname, connames, contypes
+    return objname, connames, contypes
 end
 
 function read_columns_section(qps, objname, connames)
@@ -191,7 +191,7 @@ function read_columns_section(qps, objname, connames)
     end
     seek(qps, pos)  # backtrack to beginning of line
     # @debug "" nvar ncon minimum(arows) maximum(arows) minimum(acols) maximum(acols)
-    varnames, c, arows, acols, avals
+    return varnames, c, arows, acols, avals
 end
 
 function read_rhs_section(qps, objname, connames, contypes)
@@ -264,7 +264,7 @@ function read_rhs_section(qps, objname, connames, contypes)
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
-    c0, lcon, ucon
+    return c0, lcon, ucon
 end
 
 function read_ranges_section!(qps, connames, contypes, lcon, ucon)
@@ -318,6 +318,7 @@ function read_ranges_section!(qps, connames, contypes, lcon, ucon)
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
+    return nothing
 end
 
 function read_bounds_section(qps, varnames)
@@ -402,7 +403,7 @@ function read_bounds_section(qps, varnames)
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
-    lvar, uvar
+    return lvar, uvar
 end
 
 function read_quadobj_section(qps, varnames)
@@ -564,7 +565,7 @@ function readqps(filename::String)
     pcons = sortperm(collect(values(connames)))
     connames_array = collect(keys(connames))[pcons]
 
-    QPSData(
+    return QPSData(
         nvar, ncon,
         objsense, c0, c, qrows, qcols, qvals,
         arows, acols, avals, lcon, ucon,
