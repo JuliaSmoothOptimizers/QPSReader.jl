@@ -1,6 +1,7 @@
 using Test
 
 using QPSReader
+using SparseArrays
 
 # this is the example on pages 3-5 of
 # I. Maros and C. Meszaros, "A Repository of Convex Quadratic Programming Problems",
@@ -11,8 +12,10 @@ qp = readqps("qp-example.qps")
 @test qp.ncon == 2
 @test qp.c0 == 4.0
 @test all(qp.c .== [1.5, -2.0])
-@test all(Matrix(qp.Q) .== [8.0 0.0 ; 2.0 10.0])
-@test all(Matrix(qp.A) .== [2.0 1.0 ; -1.0 2.0])
+Q = sparse(qp.qrows, qp.qcols, qp.qvals, qp.nvar, qp.nvar)
+A = sparse(qp.arows, qp.acols, qp.avals, qp.ncon, qp.nvar)
+@test all(Matrix(Q) .== [8.0 0.0 ; 2.0 10.0])
+@test all(Matrix(A) .== [2.0 1.0 ; -1.0 2.0])
 @test all(qp.lcon .== [2.0, -Inf])
 @test all(qp.ucon .== [Inf, 6.0])
 @test all(qp.lvar .== [0.0, 0.0])
