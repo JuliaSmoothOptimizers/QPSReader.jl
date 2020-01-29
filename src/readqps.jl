@@ -9,13 +9,6 @@ const bounds_types = ["FR", "MI", "PL", "BV", "LO", "UP", "FX", "LI", "UI", "SC"
 # extra sections found in some SIF files that we ignore but shouldn't cause an error
 const sifsections = ["OBJECT BOUND"]
 
-struct SparseCOO{Tv, Ti<:Integer}
-    rows::Vector{Ti}
-    cols::Vector{Ti}
-    vals::Vector{Tv}
-    SparseCOO{Tv, Ti}() where{Tv, Ti<:Integer} = new(Ti[], Ti[], Tv[])
-end
-
 mutable struct QPSData
     nvar::Int                        # number of variables
     ncon::Int                        # number of constraints
