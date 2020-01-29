@@ -9,14 +9,27 @@ const bounds_types = ["FR", "MI", "PL", "BV", "LO", "UP", "FX", "LI", "UI", "SC"
 # extra sections found in some SIF files that we ignore but shouldn't cause an error
 const sifsections = ["OBJECT BOUND"]
 
+struct SparseCOO{Tv, Ti<:Integer}
+    rows::Vector{Ti}
+    cols::Vector{Ti}
+    vals::Vector{Tv}
+    SparseCOO{Tv, Ti}() where{Tv, Ti<:Integer} = new(Ti[], Ti[], Tv[])
+end
+
 mutable struct QPSData
     nvar::Int                        # number of variables
     ncon::Int                        # number of constraints
     objsense::Symbol                 # :min, :max or :notset
     c0::Float64                      # constant term in objective
     c::Vector{Float64}               # linear term in objective
-    Q::SparseMatrixCSC{Float64,Int}  # quadratic term in objective
-    A::SparseMatrixCSC{Float64,Int}  # constraint matrix
+    # Quadratic objective, in COO format
+    qrows::Vector{Int}
+    qcols::Vector{Int}
+    qvals::Vector{Int}
+    # Constraint matrix, in COO format
+    arows::Vector{Int}
+    acols::Vector{Int}
+    avals::Vector{Int}
     lcon::Vector{Float64}            # constraints lower bounds
     ucon::Vector{Float64}            # constraints upper bounds
     lvar::Vector{Float64}            # variables lower bounds
@@ -185,7 +198,7 @@ function read_columns_section(qps, objname, connames)
     end
     seek(qps, pos)  # backtrack to beginning of line
     # @debug "" nvar ncon minimum(arows) maximum(arows) minimum(acols) maximum(acols)
-    varnames, c, sparse(arows, acols, avals, ncon, nvar)
+    varnames, c, arows, acols, avals
 end
 
 function read_rhs_section(qps, objname, connames, contypes)
@@ -432,7 +445,7 @@ function read_quadobj_section(qps, varnames)
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
-    sparse(qrows, qcols, qvals, nvar, nvar)
+    return qrows, qcols, qvals
 end
 
 
@@ -457,8 +470,8 @@ function readqps(filename::String)
     objsense = :notset
     c0 = 0.0
     c = Float64[]
-    A = spzeros(0, 0)
-    Q = spzeros(0, 0)
+    arows, acols, avals = Int[], Int[], Float64[]
+    qrows, qcols, qvals = Int[], Int[], Float64[]
     nvar = 0
     ncon = 0
     lcon = Float64[]
@@ -501,7 +514,7 @@ function readqps(filename::String)
         if section == "COLUMNS"
             columns_section_read && error("more than one COLUMNS section specified")
             rows_section_read || error("ROWS section must come before COLUMNS section")
-            varnames, c, A = read_columns_section(qps, objname, connames)
+            varnames, c, arows, acols, avals = read_columns_section(qps, objname, connames)
             columns_section_read = true
             # @show c
             # @show A
@@ -534,7 +547,7 @@ function readqps(filename::String)
         end
         if section == "QUADOBJ"
             columns_section_read || error("COLUMNS section must come before QUADOBJ section")
-            Q = read_quadobj_section(qps, varnames)
+            qrows, qcols, qvals = read_quadobj_section(qps, varnames)
             quadobj_section_read = true
         end
     end
@@ -544,16 +557,6 @@ function readqps(filename::String)
 
     nvar = length(keys(varnames))
     ncon = length(keys(connames))
-
-    # adjust size of constraint matrix in case no linear constraints were given
-    if !columns_section_read
-        A = spzeros(0, nvar)
-    end
-
-    # adjust size of quadratic term in case problem is linear
-    if !quadobj_section_read
-        Q = spzeros(nvar, nvar)
-    end
 
     # check if optional sections were missing
     if !bounds_section_read
@@ -568,6 +571,13 @@ function readqps(filename::String)
     pcons = sortperm(collect(values(connames)))
     connames_array = collect(keys(connames))[pcons]
 
-    QPSData(nvar, ncon, objsense, c0, c, Q, A, lcon, ucon, lvar, uvar,
-            name, objname, varnames_array, connames_array)
+    QPSData(
+        nvar, ncon,
+        objsense, c0, c, qrows, qcols, qvals,
+        arows, acols, avals, lcon, ucon,
+        lvar, uvar,
+        name, objname,
+        varnames_array,
+        connames_array
+    )
 end
