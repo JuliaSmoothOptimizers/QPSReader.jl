@@ -40,8 +40,14 @@ mutable struct QPSData
     objsense::Symbol                 # :min, :max or :notset
     c0::Float64                      # constant term in objective
     c::Vector{Float64}               # linear term in objective
-    Q::SparseMatrixCSC{Float64,Int}  # quadratic term in objective
-    A::SparseMatrixCSC{Float64,Int}  # constraint matrix
+    # Quadratic objective, in COO format
+    qrows::Vector{Int}
+    qcols::Vector{Int}
+    qvals::Vector{Float64}
+    # Constraint matrix, in COO format
+    arows::Vector{Int}
+    acols::Vector{Int}
+    avals::Vector{Float64}
     lcon::Vector{Float64}            # constraints lower bounds
     ucon::Vector{Float64}            # constraints upper bounds
     lvar::Vector{Float64}            # variables lower bounds
