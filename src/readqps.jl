@@ -444,7 +444,6 @@ end
 
 
 function readqps(filename::String)
-
     name_section_read = false
     objsense_section_read = false
     rows_section_read = false
@@ -480,7 +479,7 @@ function readqps(filename::String)
         strip(line) in sifsections && continue
         line = strip.(split(line))
         length(line) == 0 && continue  # this line is blank
-        line[1][1] == '*' && continue  # this line is a comment
+        (line[1][1] == '*' || line[1][1] == '&') && continue  # this line is a comment
         section = line[1]
         rest = length(line) == 1 ? "" : join(line[2:end], " ")
         # @debug "" section rest
