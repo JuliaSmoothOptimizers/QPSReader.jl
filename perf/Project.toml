@@ -1,0 +1,5 @@
+[deps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+QPSReader = "10f199a5-22af-520b-b891-7ce84a7b1bd0"
