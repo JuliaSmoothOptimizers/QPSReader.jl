@@ -37,22 +37,24 @@ unzip -q QPDATA3.ZIP -d maros
 
 ## Running the benchmark
 
+Ensure that your current `Manifest.toml` points to the correct version of `QPSReader`. Otherwise, the most recent version will be installed.
 ```bash
-julia --project=. -e 'using Pkg; Pkg.dev(PackageSpec(path=".."))'
-git checkout master
-julia --project=. benchmark.jl --name master
-git checkout dev
-julia --project=. benchmark.jl --params par_master.json--name dev
+Pkg.develop(PackageSpec(path=".."))
 ```
 
-## Comparing two benchmarks
-
-Two benchmarks can be compared as follows:
-```bash
-julia --project=. compare.jl res_new.json res_old.json 
+Then, run the benchmark as follows:
+```julia
+julia> using PkgBenchmark
+julia> import QPSReader
+julia> res = benchmarkpkg(pathof(QPSReader));
+julia> export_markdown("results.md", res)
 ```
 
-For instance, to compare the two benchmarks above, run
-```bash
-julia --project=. compare.jl res_dev.json res_stable.json 
+## Comparing two commits
+
+To compare against the `master` branch
+```julia
+using PkgBenchmark
+judgement = judge("..", "master")
+export_markdown("judgement.md", judgement)
 ```
