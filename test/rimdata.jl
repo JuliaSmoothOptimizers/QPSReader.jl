@@ -32,6 +32,12 @@
     end
 
     @testset "Range" begin
+        qp = readqps("dat/rim_rng.qps") 
+
+        @test qp.rngname == "rng1"
+
+        @test qp.lcon == [2.0, 3.9]
+        @test qp.ucon == [3.1, 6.0]
     end
 
     @testset "Bounds" begin
