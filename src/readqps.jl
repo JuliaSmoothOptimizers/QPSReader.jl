@@ -29,8 +29,19 @@ mutable struct QPSData
     uvar::Vector{Float64}            # variables upper bounds
     name::String                     # problem name
     objname::String                  # objective function name
+    rhsname::String                  # Name of RHS field
+    bndname::String                  # Name of BOUNDS field
+    rngname::String                  # Name of RANGES field
     varnames::Vector{String}         # variable names, aka column names
     connames::Vector{String}         # constraint names, aka row names
+    # name => index mapping for variables
+    # Variables are indexed from 1 and onwards
+    varindices::Dict{String, Int}
+    # name => index mapping for constraints
+    # Constraints are indexed from 1 and onwards
+    # Recorded objective function has index 0
+    # Rim objective rows have index -1
+    conindices::Dict{String, Int}
 end
 
 function is_section_header(line)
@@ -81,9 +92,12 @@ end
 function read_rows_section(qps)
     # @debug "reading rows section"
     objname = ""
-    connames = Dict{String,Int}()
+    obj_name_read = false
+
+    connames = String[]
+    conindices = Dict{String,Int}()
     contypes = String[]
-    ncon = 1
+    ncon = 0
     rowtype = ""
     pos = position(qps)
     while true
@@ -101,27 +115,38 @@ function read_rows_section(qps)
         rowtype = strip(line[2:3])
         rowtype in row_types || error("erroneous row type $rowtype")
         name = strip(line[5:min(l,12)])
+        # TODO: check that row is not dupplicate
         # @debug "" rowtype name
         if rowtype == "N"
-            objname = name
+            if !obj_name_read
+                # Record objective
+                objname = name
+                conindices[name] = 0
+                obj_name_read = true
+            else
+                # Record name but ignore input
+                conindices[name] = -1
+            end
         else
-            push!(contypes, rowtype)
-            connames[name] = ncon
             ncon += 1
+            push!(contypes, rowtype)
+            push!(connames, name)
+            conindices[name] = ncon
         end
         pos = position(qps)
     end
     seek(qps, pos) # backtrack to beginning of line
     # @show contypes
-    return objname, connames, contypes
+    return ncon, objname, conindices, connames, contypes
 end
 
-function read_columns_section(qps, objname, connames)
+function read_columns_section(qps, objname, conindices)
     # @debug "reading columns section"
     pos = position(qps)
 
     nvar = 0
-    varnames = Dict{String,Int}()  # String[]
+    varnames = String[]
+    varindices = Dict{String,Int}()
     acols = Int[]
     arows = Int[]
     avals = Float64[]
@@ -138,15 +163,16 @@ function read_columns_section(qps, objname, connames)
         is_section_header(line) && break  # reached the end of this section
         varname = strip(line[5:12])
         # @debug "" varname
-        if !haskey(varnames, varname)
+        if !haskey(varindices, varname)
             nvar += 1
-            varnames[varname] = nvar
+            varindices[varname] = nvar
+            push!(varnames, varname)
         end
     end
 
     seek(qps, pos)  # rewind to beginning of section
 
-    ncon = length(keys(connames))
+    ncon = length(keys(conindices)) # TODO: not used
     c = zeros(nvar)
 
     while true
@@ -162,42 +188,56 @@ function read_columns_section(qps, objname, connames)
         end
         is_section_header(line) && break  # reached the end of this section
         varname = strip(line[5:12])
-        col = varnames[varname]
+        col = varindices[varname]
         fun = strip(line[15:22])
         val = parse(Float64, strip(line[25:min(l,36)]))
         # @info "" varname fun val
-        if fun == objname
+        row = get(conindices, fun, -2)
+        if row == 0
+            # Objective row
             c[col] = val
-        else
-            row = connames[fun]
+        elseif row == -1
+            # Rim objective, ignore this input
+        elseif row > 0
             push!(arows, row)
             push!(acols, col)
             push!(avals, val)
+        else
+            # This row was not declared
+            error("Unknown row $fun.")
         end
         if l ≥ 50
             fun = strip(line[40:47])
             val = parse(Float64, strip(line[50:min(l,61)]))
-            if fun == objname
+            row = get(conindices, fun, -2)
+            if row == 0
+                # Objective row
                 c[col] = val
-            else
-                row = connames[fun]
+            elseif row == -1
+                # Rim objective, ignore this input
+            elseif row > 0
                 push!(arows, row)
                 push!(acols, col)
                 push!(avals, val)
+            else
+                # This row was not declared
+                error("Unknown row $fun.")
             end
         end
-
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
     # @debug "" nvar ncon minimum(arows) maximum(arows) minimum(acols) maximum(acols)
-    return varnames, c, arows, acols, avals
+    return nvar, varnames, varindices, c, arows, acols, avals
 end
 
-function read_rhs_section(qps, objname, connames, contypes)
+function read_rhs_section(qps, objname, conindices, contypes)
     # @debug "reading rhs section"
 
-    ncon = length(keys(connames))
+    rhsname = ""
+    rhs_name_read = false
+
+    ncon = length(contypes)
     lcon = Vector{Float64}(undef, ncon)  # zeros(ncon)  # lower bounds are zero unless specified
     fill!(lcon, -Inf)
     ucon = Vector{Float64}(undef, ncon)
@@ -231,44 +271,69 @@ function read_rhs_section(qps, objname, connames, contypes)
         end
         is_section_header(line) && break  # reached the end of this section
 
+        rhs = strip(line[5:12])
+        if !rhs_name_read
+            # Record this as the RHS
+            rhsname = rhs
+            rhs_name_read = true
+        elseif rhsname != rhs
+            # Rim RHS, ignore this line
+            pos = position(qps)
+            continue
+        end
+
         fun = strip(line[15:22])
         val = parse(Float64, strip(line[25:min(l,36)]))
         # @info "" fun val
-        if fun == objname
+        row = get(conindices, fun, -2)
+        if row == 0
+            # Objective row
             c0 = -val
+        elseif row == -1
+            # Rim objective, ignore this input
+        elseif row > 0
+            if contypes[row] == "L" || contypes[row] == "E"
+                ucon[row] = val
+            end
+            if contypes[row] == "G" || contypes[row] == "E"
+                lcon[row] = val
+            end
         else
-            j = connames[fun]
-            if contypes[j] == "L" || contypes[j] == "E"
-                ucon[j] = val
-            end
-            if contypes[j] == "G" || contypes[j] == "E"
-                lcon[j] = val
-            end
+            # This row was not declared
+            error("Unknown row $fun.")
         end
         if l ≥ 50
             fun = strip(line[40:47])
             val = parse(Float64, strip(line[50:min(l,61)]))
-            if fun == objname
+            row = get(conindices, fun, -2)
+            if row == 0
+                # Objective row
                 c0 = -val
+            elseif row == -1
+                # Rim objective, ignore this input
+            elseif row > 0
+                if contypes[row] == "L" || contypes[row] == "E"
+                    ucon[row] = val
+                end
+                if contypes[row] == "G" || contypes[row] == "E"
+                    lcon[row] = val
+                end
             else
-                j = connames[fun]
-                if contypes[j] == "L" || contypes[j] == "E"
-                    ucon[j] = val
-                end
-                if contypes[j] == "G" || contypes[j] == "E"
-                    lcon[j] = val
-                end
+                # This row was not declared
+                error("Unknown row $fun.")
             end
         end
 
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
-    return c0, lcon, ucon
+    return rhsname, c0, lcon, ucon
 end
 
 function read_ranges_section!(qps, connames, contypes, lcon, ucon)
     # @debug "reading ranges section"
+    rngname = ""
+    range_name_read = false
 
     pos = position(qps)
     while true
@@ -283,6 +348,17 @@ function read_ranges_section!(qps, connames, contypes, lcon, ucon)
             continue  # this line is a comment
         end
         is_section_header(line) && break  # reached the end of this section
+
+        rng = strip(line[5:12])
+        if !range_name_read
+            # Record name
+            rngname = rng
+            range_name_read = true
+        elseif rng != rngname
+            # Rim RHS, ignore this line
+            pos = position(qps)
+            continue
+        end
 
         fun = strip(line[15:22])
         val = parse(Float64, strip(line[25:min(l,36)]))
@@ -318,13 +394,15 @@ function read_ranges_section!(qps, connames, contypes, lcon, ucon)
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
-    return nothing
+    return rngname
 end
 
-function read_bounds_section(qps, varnames)
+function read_bounds_section(qps, nvar, varindices)
     # @debug "reading bounds section"
 
-    nvar = length(keys(varnames))
+    bndname = ""
+    bound_name_read = false
+
     lvar = zeros(nvar)  # lower bounds are zero unless specified
     uvar = Vector{Float64}(undef, nvar)
     fill!(uvar, Inf)
@@ -345,10 +423,21 @@ function read_bounds_section(qps, varnames)
 
         bndtype = line[2:3]
         bndtype in bounds_types || error("erroneous bound type $bndtype")
-        # line[5:12], when present, is the bound name
+        bnd = strip(line[5:12])  # when present, is the bound name
+
+        if !bound_name_read
+            # Record
+            bndname = bnd
+            bound_name_read = true
+        elseif bnd != bndname
+            # Rim bound field. Ignore this line
+            pos = position(qps)
+            continue
+        end
+
         varname = strip(line[15:min(l,22)])
         # @debug "" bndtype varname
-        i = varnames[varname]
+        i = varindices[varname]
         if bndtype == "FR"
             lvar[i] = -Inf
             pos = position(qps)
@@ -403,13 +492,12 @@ function read_bounds_section(qps, varnames)
         pos = position(qps)
     end
     seek(qps, pos)  # backtrack to beginning of line
-    return lvar, uvar
+    return bndname, lvar, uvar
 end
 
-function read_quadobj_section(qps, varnames)
+function read_quadobj_section(qps, varindices)
     # @debug "reading quadobj section"
 
-    nvar = length(keys(varnames))
     qrows = Int[]
     qcols = Int[]
     qvals = Float64[]
@@ -429,8 +517,8 @@ function read_quadobj_section(qps, varnames)
         is_section_header(line) && break  # reached the end of this section
 
         # read lower triangle, i.e., row ≥ col
-        col = varnames[strip(line[5:12])]
-        row = varnames[strip(line[15:22])]
+        col = varindices[strip(line[5:12])]
+        row = varindices[strip(line[15:22])]
         val = parse(Float64, strip(line[25:min(l,36)]))
         push!(qrows, row)
         push!(qcols, col)
@@ -454,10 +542,16 @@ function readqps(filename::String)
     quadobj_section_read = false
     endata_read = false
 
-    name = "unknown"
-    objname = "unknown"
-    varnames = Dict{String,Int}()
-    connames = Dict{String,Int}()
+    name = ""
+    objname = ""
+    rhsname = ""
+    bndname = ""
+    rngname = ""
+
+    varnames = String[]
+    connames = String[]
+    varindices = Dict{String,Int}()
+    conindices = Dict{String,Int}()
     contypes = String[]
 
     objsense = :notset
@@ -501,13 +595,13 @@ function readqps(filename::String)
         end
         if section == "ROWS"
             rows_section_read && error("more than one ROWS section specified")
-            objname, connames, contypes = read_rows_section(qps)
+            ncon, objname, conindices, connames, contypes = read_rows_section(qps)
             rows_section_read = true
         end
         if section == "COLUMNS"
             columns_section_read && error("more than one COLUMNS section specified")
             rows_section_read || error("ROWS section must come before COLUMNS section")
-            varnames, c, arows, acols, avals = read_columns_section(qps, objname, connames)
+            nvar, varnames, varindices, c, arows, acols, avals = read_columns_section(qps, objname, conindices)
             columns_section_read = true
             # @show c
             # @show A
@@ -516,7 +610,7 @@ function readqps(filename::String)
             rhs_section_read && error("more than one RHS section specified")
             name_section_read || error("NAME section must come before RHS section")
             columns_section_read || error("COLUMNS section must come before RHS section")
-            c0, lcon, ucon = read_rhs_section(qps, objname, connames, contypes)
+            rhsname, c0, lcon, ucon = read_rhs_section(qps, objname, conindices, contypes)
             rhs_section_read = true
             # @show c0
             # @show lcon
@@ -533,14 +627,14 @@ function readqps(filename::String)
         if section == "BOUNDS"
             bounds_section_read && error("more than one BOUNDS section specified")
             columns_section_read || error("COLUMNS section must come before BOUNDS section")
-            lvar, uvar = read_bounds_section(qps, varnames)
+            bndname, lvar, uvar = read_bounds_section(qps, nvar, varindices)
             bounds_section_read = true
             # @show lvar
             # @show uvar
         end
         if section == "QUADOBJ"
             columns_section_read || error("COLUMNS section must come before QUADOBJ section")
-            qrows, qcols, qvals = read_quadobj_section(qps, varnames)
+            qrows, qcols, qvals = read_quadobj_section(qps, varindices)
             quadobj_section_read = true
         end
     end
@@ -548,8 +642,8 @@ function readqps(filename::String)
 
     endata_read || @error("reached end of file before ENDATA section")
 
-    nvar = length(keys(varnames))
-    ncon = length(keys(connames))
+    nvar = length(contypes)
+    ncon = length(c)
 
     # check if optional sections were missing
     if !bounds_section_read
@@ -558,19 +652,13 @@ function readqps(filename::String)
         fill!(uvar, Inf)
     end
 
-    # obtain arrays withe variable and constraint names in order
-    pvars = sortperm(collect(values(varnames)))
-    varnames_array = collect(keys(varnames))[pvars]
-    pcons = sortperm(collect(values(connames)))
-    connames_array = collect(keys(connames))[pcons]
-
     return QPSData(
         nvar, ncon,
         objsense, c0, c, qrows, qcols, qvals,
         arows, acols, avals, lcon, ucon,
         lvar, uvar,
-        name, objname,
-        varnames_array,
-        connames_array
+        name, objname, rhsname, bndname, rngname,
+        varnames, connames,
+        varindices, conindices
     )
 end
