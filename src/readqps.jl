@@ -330,7 +330,7 @@ function read_rhs_section(qps, objname, conindices, contypes)
     return rhsname, c0, lcon, ucon
 end
 
-function read_ranges_section!(qps, connames, contypes, lcon, ucon)
+function read_ranges_section!(qps, conindices, contypes, lcon, ucon)
     # @debug "reading ranges section"
     rngname = ""
     range_name_read = false
@@ -363,7 +363,8 @@ function read_ranges_section!(qps, connames, contypes, lcon, ucon)
         fun = strip(line[15:22])
         val = parse(Float64, strip(line[25:min(l,36)]))
         # @info "" fun val
-        j = connames[fun]
+        j = conindices[fun]
+        j >= 1 || error("Encountered objective row $fun in RANGES section")
         if contypes[j] == "E"
             @warn "not sure what a range is for an equality constraint! Skipping."
             continue
@@ -378,7 +379,8 @@ function read_ranges_section!(qps, connames, contypes, lcon, ucon)
         if l ≥ 50
             fun = strip(line[40:47])
             val = parse(Float64, strip(line[50:min(l,61)]))
-            j = connames[fun]
+            j = conindices[fun]
+            j >= 1 || error("Encountered objective row $fun in RANGES section")
             if contypes[j] == "E"
                 @warn "not sure what a range is for an equality constraint! Skipping."
                 continue
@@ -619,7 +621,7 @@ function readqps(filename::String)
         if section == "RANGES"
             ranges_section_read && error("more than one RANGES section specified")
             rhs_section_read || error("RHS section must come before RANGES section")
-            read_ranges_section!(qps, connames, contypes, lcon, ucon)
+            rngname = read_ranges_section!(qps, conindices, contypes, lcon, ucon)
             ranges_section_read = true
             # @show lcon
             # @show ucon
