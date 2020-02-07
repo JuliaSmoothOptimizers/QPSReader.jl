@@ -651,6 +651,17 @@ function readqps(filename::String)
         fill!(uvar, Inf)
     end
 
+    # Print problem names
+    if verbose
+        println("Problem          : ", name)
+        println("Objective sense  : $objsense")
+        println("Objective name   : ", objname)
+        rhs_section_read && println("RHS              : ", rhsname)
+        ranges_section_read && println("RANGES           : ", rngname)
+        bounds_section_read && println("BOUNDS           : ", bndname)
+        println()
+    end
+
     return QPSData(
         nvar, ncon,
         objsense, c0, c, qrows, qcols, qvals,
