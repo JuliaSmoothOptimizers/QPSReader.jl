@@ -644,9 +644,6 @@ function readqps(filename::String)
 
     endata_read || @error("reached end of file before ENDATA section")
 
-    nvar = length(contypes)
-    ncon = length(c)
-
     # check if optional sections were missing
     if !bounds_section_read
         lvar = zeros(nvar)
