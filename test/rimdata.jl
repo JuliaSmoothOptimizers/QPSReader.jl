@@ -2,7 +2,7 @@
     
 
     @testset "Objective" begin
-        qp = readqps("dat/rim_obj.qps")
+        qp = readqps("dat/rim_obj.qps", verbose=false)
 
         @test qp.objname == "obj1"
         @test qp.conindices["obj1"] == 0
@@ -21,7 +21,7 @@
     end
 
     @testset "RHS" begin
-        qp = readqps("dat/rim_rhs.qps")
+        qp = readqps("dat/rim_rhs.qps", verbose=false)
 
         @test qp.rhsname == "rhs1"
 
@@ -32,7 +32,7 @@
     end
 
     @testset "Range" begin
-        qp = readqps("dat/rim_rng.qps") 
+        qp = readqps("dat/rim_rng.qps", verbose=false) 
 
         @test qp.rngname == "rng1"
 
