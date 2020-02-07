@@ -93,6 +93,7 @@ function read_rows_section(qps)
     # @debug "reading rows section"
     objname = ""
     obj_name_read = false
+    rim_obj_detected = false
 
     connames = String[]
     conindices = Dict{String,Int}()
@@ -126,6 +127,8 @@ function read_rows_section(qps)
             else
                 # Record name but ignore input
                 conindices[name] = -1
+                rim_obj_detected || @warn "Detected rim objective $name.\nThis row and subsequent objective rows will be ignored."
+                rim_obj_detected = true
             end
         else
             ncon += 1
@@ -198,6 +201,7 @@ function read_columns_section(qps, objname, conindices)
             c[col] = val
         elseif row == -1
             # Rim objective, ignore this input
+            @error "Ignoring coefficient ($fun, $varname) with value $val"
         elseif row > 0
             push!(arows, row)
             push!(acols, col)
@@ -215,6 +219,7 @@ function read_columns_section(qps, objname, conindices)
                 c[col] = val
             elseif row == -1
                 # Rim objective, ignore this input
+                @error("Ignoring coefficient ($fun, $varname) with value $val")
             elseif row > 0
                 push!(arows, row)
                 push!(acols, col)
@@ -236,6 +241,7 @@ function read_rhs_section(qps, objname, conindices, contypes)
 
     rhsname = ""
     rhs_name_read = false
+    rim_rhs_detected = false
 
     ncon = length(contypes)
     lcon = Vector{Float64}(undef, ncon)  # zeros(ncon)  # lower bounds are zero unless specified
@@ -278,6 +284,9 @@ function read_rhs_section(qps, objname, conindices, contypes)
             rhs_name_read = true
         elseif rhsname != rhs
             # Rim RHS, ignore this line
+            rim_rhs_detected || @warn "Detected rim RHS $rhs"
+            @error "Skipping line for rim RHS $rhs"
+            rim_rhs_detected = true
             pos = position(qps)
             continue
         end
@@ -291,6 +300,7 @@ function read_rhs_section(qps, objname, conindices, contypes)
             c0 = -val
         elseif row == -1
             # Rim objective, ignore this input
+            @error "Ignoring RHS for rim objective $fun"
         elseif row > 0
             if contypes[row] == "L" || contypes[row] == "E"
                 ucon[row] = val
@@ -311,6 +321,7 @@ function read_rhs_section(qps, objname, conindices, contypes)
                 c0 = -val
             elseif row == -1
                 # Rim objective, ignore this input
+                @error "Ignoring RHS for rim objective $fun"
             elseif row > 0
                 if contypes[row] == "L" || contypes[row] == "E"
                     ucon[row] = val
@@ -334,6 +345,7 @@ function read_ranges_section!(qps, conindices, contypes, lcon, ucon)
     # @debug "reading ranges section"
     rngname = ""
     range_name_read = false
+    rim_rng_detected = false
 
     pos = position(qps)
     while true
@@ -355,7 +367,10 @@ function read_ranges_section!(qps, conindices, contypes, lcon, ucon)
             rngname = rng
             range_name_read = true
         elseif rng != rngname
-            # Rim RHS, ignore this line
+            # Rim range, ignore this line
+            rim_rng_detected || @warn "Detected rim range $rng"
+            rim_rng_detected = true
+            @error "Skipping line for rim range $rng"
             pos = position(qps)
             continue
         end
@@ -404,6 +419,7 @@ function read_bounds_section(qps, nvar, varindices)
 
     bndname = ""
     bound_name_read = false
+    rim_bnd_detected = false
 
     lvar = zeros(nvar)  # lower bounds are zero unless specified
     uvar = Vector{Float64}(undef, nvar)
@@ -433,6 +449,9 @@ function read_bounds_section(qps, nvar, varindices)
             bound_name_read = true
         elseif bnd != bndname
             # Rim bound field. Ignore this line
+            rim_bnd_detected || @warn "Detected rim bound with name $bnd"
+            @error "Skipping line for rim bound $bnd"
+            rim_bnd_detected = true
             pos = position(qps)
             continue
         end
@@ -652,15 +671,12 @@ function readqps(filename::String)
     end
 
     # Print problem names
-    if verbose
-        println("Problem          : ", name)
-        println("Objective sense  : $objsense")
-        println("Objective name   : ", objname)
-        rhs_section_read && println("RHS              : ", rhsname)
-        ranges_section_read && println("RANGES           : ", rngname)
-        bounds_section_read && println("BOUNDS           : ", bndname)
-        println()
-    end
+    @info("Problem name     : $name")
+    @info("Objective sense  : $objsense")
+    @info("Objective name   : $objname")
+    rhs_section_read && @info("RHS              : $rhsname")
+    ranges_section_read && @info("RANGES           : $rngname")
+    bounds_section_read && @info("BOUNDS           : $bndname")
 
     return QPSData(
         nvar, ncon,

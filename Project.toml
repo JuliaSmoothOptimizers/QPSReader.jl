@@ -1,6 +1,9 @@
 name = "QPSReader"
 uuid = "10f199a5-22af-520b-b891-7ce84a7b1bd0"
 
+[deps]
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+
 [compat]
 julia = "^1.0.0"
 
@@ -9,4 +12,4 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["SparseArrays","Test"]
+test = ["SparseArrays", "Test"]

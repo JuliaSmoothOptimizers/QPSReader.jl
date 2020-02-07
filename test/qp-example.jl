@@ -6,7 +6,20 @@ using SparseArrays
 # http://www.doc.ic.ac.uk/rr2000/DTR97-6.pdf
 
 @testset "QP example" begin
-    qp = readqps("dat/qp-example.qps")
+
+    # Test logging
+    # Note that logs won't display since they are captured by the test macro
+    qp = @test_logs(
+        # These logs must appear in exactly this order
+        (:info, "Problem name     : QP example"),
+        (:info, "Objective sense  : notset"),
+        (:info, "Objective name   : obj"),
+        (:info, "RHS              : rhs1"),
+        (:info, "RANGES           : "),
+        (:info, "BOUNDS           : bnd1"),
+        match_mode = :all,
+        readqps("dat/qp-example.qps")
+    )
 
     @test qp.name == "QP example"
     @test qp.objname == "obj"
