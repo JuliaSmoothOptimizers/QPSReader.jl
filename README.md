@@ -4,7 +4,7 @@ Linux and macOS: [![Build Status](https://travis-ci.org/JuliaSmoothOptimizers/QP
 Windows: [![Build status](https://ci.appveyor.com/api/projects/status/mntnshay4xud7t8t?svg=true)](https://ci.appveyor.com/project/dpo/qpsreader-jl)
 FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl.svg)](https://cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl)
 [![Coverage Status](https://coveralls.io/repos/JuliaSmoothOptimizers/QPSReader.jl/badge.svg?branch=master)](https://coveralls.io/r/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
-[![codecov.io](http://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
+[![codecov.io](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=master)](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
 
 A package to read linear optimization problems in fixed MPS format and quadratic optimization problems in QPS format.
 
@@ -72,3 +72,22 @@ The matrix Q is zero when reading an MPS file.
 
 * the MPS file format is described at http://lpsolve.sourceforge.net/5.5/mps-format.htm
 * the QPS extension is described in https://doi.org/10.1080/10556789908805768
+
+### Rim Data
+
+The following cases are expected, and will not result in an error being thrown:
+* Multiple objective rows
+    * The first `N`-type row encountered in the `ROWS` section is recorded as the objective function, and its name is stored in `objname`.
+    * If an additional `N`-type row is present, a `warning`-level log is displayed. Subsequent `N`-type rows are ignored.
+    * Each time a rim objective row is encountered in the `COLUMNS` or `RHS` section, the corresponding coefficients are skipped, and an `error`-level log is displayed.
+
+* Multiple RHS / Range / Bound fields
+    * The second field of the first card in the `RHS` section determines the name of the right-hand side, which is stored in `rhsname`. Same goes for the `RANGES` and `BOUNDS` sections, with the corresponding names being stored in `rngname` and `bndname`, respectively.
+    * Any card whose second field does not match the expected name is then ignored.
+    A `warning`-level log is displayed at the first such occurence.
+    * In addition, any line or individual coefficient that is ignored triggers an `error`-level log.
+
+An error will be thrown in the following cases:
+* A row (resp. column) name that was not declared in the `ROWS` (resp. `COLUMNS`) section, appears elsewhere in the file.
+The only case where an error would not be thrown is if sais un-declared row or column appears in a rim line that is skipped.
+* An `N`-type row appears in the `RANGES` section
