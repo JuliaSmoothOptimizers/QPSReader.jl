@@ -1,14 +1,6 @@
 # http://lpsolve.sourceforge.net/5.5/mps-format.htm
 # https://doi.org/10.1080/10556789908805768
 
-const OBJSENSE = ["MIN", "MAX"]
-const sections = ["NAME", "OBJSENSE", "ROWS", "COLUMNS", "RHS", "BOUNDS", "RANGES", "QUADOBJ", "ENDATA"]
-const row_types = ["N", "G", "L", "E"]
-const bounds_types = ["FR", "MI", "PL", "BV", "LO", "UP", "FX", "LI", "UI", "SC"]
-
-# extra sections found in some SIF files that we ignore but shouldn't cause an error
-const sifsections = ["OBJECT BOUND"]
-
 mutable struct QPSData
     nvar::Int                        # number of variables
     ncon::Int                        # number of constraints
@@ -27,11 +19,11 @@ mutable struct QPSData
     ucon::Vector{Float64}            # constraints upper bounds
     lvar::Vector{Float64}            # variables lower bounds
     uvar::Vector{Float64}            # variables upper bounds
-    name::String                     # problem name
-    objname::String                  # objective function name
-    rhsname::String                  # Name of RHS field
-    bndname::String                  # Name of BOUNDS field
-    rngname::String                  # Name of RANGES field
+    name::Union{Nothing, String}     # problem name
+    objname::Union{Nothing, String}  # objective function name
+    rhsname::Union{Nothing, String}  # Name of RHS field
+    bndname::Union{Nothing, String}  # Name of BOUNDS field
+    rngname::Union{Nothing, String}  # Name of RANGES field
     varnames::Vector{String}         # variable names, aka column names
     connames::Vector{String}         # constraint names, aka row names
     # name => index mapping for variables
@@ -42,515 +34,558 @@ mutable struct QPSData
     # Recorded objective function has index 0
     # Rim objective rows have index -1
     conindices::Dict{String, Int}
+    contypes::Vector{Int}
 end
 
-function is_section_header(line)
-    # check if the first few characters of `line` are a section name
-    # this is necessary because a section name could appear elsewhere
-    # in the line (e.g., as a variable or constraint name)
-    for section in sections ∪ sifsections
-        if occursin(section, line)
-            l = length(section)
-            if section == line[1:l]
-                return true
-            end
-        end
+"""
+    MPSCard
+
+Data structure for parsing a single line of an MPS file.
+"""
+mutable struct MPSCard
+    iscomment::Bool 
+    isheader::Bool
+
+    nfields::Int  # Number of fields that were read
+    # MPS fields
+    f1::String
+    f2::String
+    f3::String
+    f4::String
+    f5::String
+    f6::String
+end
+
+# Section headers
+# Additional sections may be added
+# By convention, all sections should correspond to non-negative integers
+const ENDATA = 0
+const NAME = 1
+const OBJ_SENSE = 2
+const ROWS = 3
+const COLUMNS = 4
+const RHS = 5
+const BOUNDS = 6
+const RANGES = 7
+const QUADOBJ = 8
+const OBJECT_BOUND = 10
+
+const SECTION_HEADERS = Dict{String, Int}(
+    "ENDATA" => ENDATA,
+    "NAME" => NAME,
+    "OBJ_SENSE" => OBJ_SENSE,  # Free MPS only
+    "ROWS" => ROWS,
+    "COLUMNS" => COLUMNS,
+    "RHS" => RHS,
+    "BOUNDS" => BOUNDS,
+    "RANGES" => RANGES,
+    "QUADOBJ" => QUADOBJ,
+    "OBJECT BOUND" => OBJECT_BOUND,  # SIF only
+)
+
+"""
+    section_header(s::String)
+
+Return the section corresponding to `s`.
+
+Throws an error if `s` is not a recognized section header.
+"""
+function section_header(s::String)
+    
+    sec = get(SECTION_HEADERS, s, -1)
+    (sec >= 0) || error("Un-recognized section header: $s")
+
+    return sec
+end
+
+# Row types
+const RTYPE_E =  0  # equal-to
+const RTYPE_L = -1  # less-than
+const RTYPE_G =  1  # greater-than
+const RTYPE_N =  2  # objective
+
+function row_type(rtype::String)
+    if rtype == "E"
+        return RTYPE_E
+    elseif rtype == "L"
+        return RTYPE_L
+    elseif rtype == "G"
+        return RTYPE_G
+    elseif rtype == "N"
+        return RTYPE_N
+    else
+        error("Unknown row type $rtype")
     end
-    return false
 end
 
-function read_name_section(qps, rest)
-    # @debug "reading name section"
-    return rest  # simply return the problem name
-end
+"""
+    read_card!(card::MPSCard, ln::String)
 
-function read_objsense_section(qps)
-    objsense = :notset
-    pos = position(qps)
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
-        end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
+Read the fields in `ln` into `card`.
+"""
+function read_card!(card::MPSCard, ln::String)
+    l = length(ln)
+    if l == 0 || ln[1] == '*' || ln[1] == '&'
+        # This line is an empty line, or it is a comment
+        card.iscomment = true
+        card.isheader = false
+        card.nfields = 0
 
-        line[1] in objsense || error("undefined objective sense $objsense")
-        objsense = line[1] == "MIN" ? :min : :max
+    elseif !isspace(ln[1])
+        # This line is a section header
+        card.iscomment = false
+        card.isheader = true
+        card.nfields = 1
 
-        pos = position(qps)
-    end
-    seek(qps, pos) # backtrack to beginning of line
-    return objsense
-end
-
-function read_rows_section(qps)
-    # @debug "reading rows section"
-    objname = ""
-    obj_name_read = false
-    rim_obj_detected = false
-
-    connames = String[]
-    conindices = Dict{String,Int}()
-    contypes = String[]
-    ncon = 0
-    rowtype = ""
-    pos = position(qps)
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
-        end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
-        rowtype = strip(line[2:3])
-        rowtype in row_types || error("erroneous row type $rowtype")
-        name = strip(line[5:min(l,12)])
-        # TODO: check that row is not dupplicate
-        # @debug "" rowtype name
-        if rowtype == "N"
-            if !obj_name_read
-                # Record objective
-                objname = name
-                conindices[name] = 0
-                obj_name_read = true
+        # This only works for fixed MPS; free format is not supported yet
+        s = split(ln)
+        card.f1 = String(s[1])
+        # Read name, if applicable
+        if card.f1 == "NAME"
+            card.f2 = String(strip(ln[15:end]))
+            card.nfields = 2
+        elseif card.f1 == "OBJECT"
+            # Check that this is a "OBJECT BOUND" line
+            if s[2] == "BOUND"
+                card.f1 = "OBJECT BOUND"
             else
-                # Record name but ignore input
-                conindices[name] = -1
-                rim_obj_detected || @warn "Detected rim objective $name.\nThis row and subsequent objective rows will be ignored."
-                rim_obj_detected = true
+                error("Unrecognized section header: $ln")
             end
-        else
-            ncon += 1
-            push!(contypes, rowtype)
-            push!(connames, name)
-            conindices[name] = ncon
         end
-        pos = position(qps)
+
+    else
+        # Regular card
+        card.iscomment = false
+        card.isheader = false
+
+        # Read fields
+        # First field
+        if l < 3
+            error("Short line\n$ln")
+        else
+            card.f1 = strip(String(ln[2:3]))
+            card.nfields = 1
+        end
+
+        # Second field
+        if l < 5
+            return card
+        elseif 5 <= l <= 12
+            card.f2 = strip(String(ln[5:end]))
+            card.nfields = 2
+            return card
+        else
+            card.f2 = strip(String(ln[5:12]))
+        end
+
+        # Third field
+        if l < 15
+            card.nfields = 2
+            return card
+        elseif 15 <= l <= 22
+            card.f3 = strip(String(ln[15:end]))
+            card.nfields = 3
+            return card
+        else
+            card.f3 = strip(String(ln[15:22]))
+        end
+
+        # Fourth field
+        if l < 25
+            card.nfields = 3
+            return card
+        elseif 25 <= l <= 36
+            card.f4 = strip(String(ln[25:end]))
+            card.nfields = 4
+            return card
+        else
+            card.f4 = strip(String(ln[25:36]))
+        end
+
+        # Fifth field
+        if l < 40
+            card.nfields = 4
+            return card
+        elseif 40 <= l <= 47
+            card.f5 = strip(String(ln[40:end]))
+            card.nfields = 5
+            return card
+        else
+            card.f5 = strip(String(ln[40:47]))
+        end
+
+        # Sixth field
+        if l < 50
+            card.nfields = 5
+            return card
+        elseif 50 <= l <= 61
+            card.f6 = strip(String(ln[50:end]))
+        else
+            card.f6 = strip(String(ln[50:61]))
+        end
+
+        card.nfields = 6
     end
-    seek(qps, pos) # backtrack to beginning of line
-    # @show contypes
-    return ncon, objname, conindices, connames, contypes
+
+    return card
 end
 
-function read_columns_section(qps, objname, conindices)
-    # @debug "reading columns section"
-    pos = position(qps)
+function read_objsense_line!(qps::QPSData, card::MPSCard)
+    if card.f1 == "MIN"
+        qps.objsense = :min
+    elseif card.f1 == "MAX"
+        qps.objsense = :max
+    else
+        error("Unrecognized objective sense: $(card.f1)")
+    end
+    return nothing
+end
 
-    nvar = 0
-    varnames = String[]
-    varindices = Dict{String,Int}()
-    acols = Int[]
-    arows = Int[]
-    avals = Float64[]
+"""
+    read_rows_line
+"""
+function read_rows_line!(qps::QPSData, card::MPSCard)
+    # Sanity check
+    card.nfields >= 2 || error("ROWS lines must contain at least two fields.")
 
-    # make a first pass to record variable names
-    while true
-        line = readline(qps)
-        if length(strip(line)) == 0
-            continue  # this line is blank
+    rtype = row_type(card.f1)
+    rowname = card.f2
+
+    if rtype == RTYPE_N
+        # Objective row
+        if isnothing(qps.objname)
+            # Record objective
+            qps.objname = rowname
+            qps.conindices[rowname] = 0
+        else
+            # Record name but ignore input
+            @warn "Detected rim objective row $rowname."
+            qps.conindices[rowname] = -1
         end
-        if line[1] == '*'
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
-        varname = strip(line[5:12])
-        # @debug "" varname
-        if !haskey(varindices, varname)
-            nvar += 1
-            varindices[varname] = nvar
-            push!(varnames, varname)
-        end
+
+        return nothing
     end
 
-    seek(qps, pos)  # rewind to beginning of section
+    # Regular row
+    ncon = qps.ncon + 1
+    ridx = get!(qps.conindices, rowname, ncon)
+    ridx == ncon || error("Duplicate row name $rowname")
+    qps.ncon += 1
 
-    ncon = length(keys(conindices)) # TODO: not used
-    c = zeros(nvar)
+    # Record row sense
+    push!(qps.contypes, rtype)
+    push!(qps.connames, rowname)
 
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
+    # Populate default values for right-hand sides
+    # TODO: it would be more efficient to allocate memory only once
+    if rtype == RTYPE_E
+        push!(qps.lcon, 0.0)
+        push!(qps.ucon, 0.0)
+    elseif rtype == RTYPE_G
+        push!(qps.lcon, 0.0)
+        push!(qps.ucon, Inf)
+    elseif rtype == RTYPE_L
+        push!(qps.lcon, -Inf)
+        push!(qps.ucon, 0.0)
+    end
+
+    return nothing
+end
+
+function read_columns_line!(qps::QPSData, card::MPSCard)
+    # Sanity check
+    card.nfields >= 4 || error("COLUMNS lines must have at least 4 fields")
+
+    varname = card.f2
+    nvar = qps.nvar + 1
+    # Get column index
+    col = get!(qps.varindices, varname, nvar)
+    if col == nvar
+        # new variable
+        qps.nvar += 1
+        push!(qps.varnames, varname)
+        push!(qps.c, 0.0)
+
+        # Populate default variable bounds
+        # TODO: this should be done only once
+        push!(qps.lvar, 0.0)
+        push!(qps.uvar, Inf)
+    end
+
+    fun = card.f3
+    val = parse(Float64, card.f4)
+
+    row = get(qps.conindices, fun, -2)
+    if row == 0
+        # Objective
+        qps.c[col] = val
+    elseif row == -1
+        # Rim objective, ignore this input
+        @error "Ignoring coefficient ($fun, $varname) with value $val"
+    elseif row > 0
+        # Record coefficient
+        push!(qps.arows, row)
+        push!(qps.acols, col)
+        push!(qps.avals, val)
+    else
+        # This row was not declared
+        error("Unknown row $fun.")
+    end
+
+    card.nfields >= 6 || return nothing
+
+    # Read second par of the fields
+    fun = card.f5
+    val = parse(Float64, card.f6)
+
+    row = get(qps.conindices, fun, -2)
+    if row == 0
+        # Objective
+        qps.c[col] = val
+    elseif row == -1
+        # Rim objective, ignore this input
+        @error "Ignoring coefficient ($fun, $varname) with value $val"
+    elseif row > 0
+        # Record coefficient
+        push!(qps.arows, row)
+        push!(qps.acols, col)
+        push!(qps.avals, val)
+    else
+        # This row was not declared
+        error("Unknown row $fun.")
+    end
+
+    return nothing
+end
+
+function read_rhs_line!(qps::QPSData, card::MPSCard)
+    # Sanity check
+    card.nfields >= 4 || error("RHS lines must have at least 4 fields")
+
+    rhs = card.f2
+    if isnothing(qps.rhsname)
+        # Record this as the RHS
+        qps.rhsname = rhs
+    elseif qps.rhsname != rhs
+        # Rim RHS, ignore this line
+        @error "Skipping line with rim RHS $rhs"
+        return nothing
+    end
+
+    fun = card.f3
+    val = parse(Float64, card.f4)
+    row = get(qps.conindices, fun, -2)
+    if row == 0
+        # Objective row
+        qps.c0 = -val
+    elseif row == -1
+        # Rim objective, ignore this input
+        @error "Ignoring RHS for rim objective $fun"
+    elseif row > 0
+        rtype = qps.contypes[row]
+        if rtype == RTYPE_E
+            qps.lcon[row] = val
+            qps.ucon[row] = val
+        elseif rtype == RTYPE_L
+            qps.ucon[row] = val
+        elseif rtype == RTYPE_G
+            qps.lcon[row] = val
         end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
+    else
+        # This row was not declared
+        error("Unknown row $fun.")
+    end
+
+    card.nfields >= 6 || return nothing
+
+    fun = card.f5
+    val = parse(Float64, card.f6)
+    row = get(qps.conindices, fun, -2)
+    if row == 0
+        # Objective row
+        qps.c0 = -val
+    elseif row == -1
+        # Rim objective, ignore this input
+        @error "Ignoring RHS for rim objective $fun"
+    elseif row > 0
+        rtype = qps.contypes[row]
+        if rtype == RTYPE_E
+            qps.lcon[row] = val
+            qps.ucon[row] = val
+        elseif rtype == RTYPE_L
+            qps.ucon[row] = val
+        elseif rtype == RTYPE_G
+            qps.lcon[row] = val
         end
-        is_section_header(line) && break  # reached the end of this section
-        varname = strip(line[5:12])
-        col = varindices[varname]
-        fun = strip(line[15:22])
-        val = parse(Float64, strip(line[25:min(l,36)]))
-        # @info "" varname fun val
-        row = get(conindices, fun, -2)
-        if row == 0
-            # Objective row
-            c[col] = val
-        elseif row == -1
-            # Rim objective, ignore this input
-            @error "Ignoring coefficient ($fun, $varname) with value $val"
-        elseif row > 0
-            push!(arows, row)
-            push!(acols, col)
-            push!(avals, val)
-        else
-            # This row was not declared
-            error("Unknown row $fun.")
-        end
-        if l ≥ 50
-            fun = strip(line[40:47])
-            val = parse(Float64, strip(line[50:min(l,61)]))
-            row = get(conindices, fun, -2)
-            if row == 0
-                # Objective row
-                c[col] = val
-            elseif row == -1
-                # Rim objective, ignore this input
-                @error("Ignoring coefficient ($fun, $varname) with value $val")
-            elseif row > 0
-                push!(arows, row)
-                push!(acols, col)
-                push!(avals, val)
+    else
+        # This row was not declared
+        error("Unknown row $fun.")
+    end
+
+    return nothing
+end
+
+"""
+
+
+```
+row type       sign of r       h          u
+----------------------------------------------
+    G            + or -         b        b + |r|
+    L            + or -       b - |r|      b
+    E              +            b        b + |r|
+    E              -          b - |r|      b
+```
+"""
+function read_ranges_line!(qps::QPSData, card::MPSCard)
+    # Sanity check
+    card.nfields >= 4 || error("RANGES lines must have at least 4 fields")
+    
+    rng = card.f2
+    if isnothing(qps.rngname)
+        # Record this as the RANGES
+        qps.rngname = rng
+    elseif qps.rngname != rng
+        # Rim RANGES, ignore this line
+        @error "Skipping line with rim RANGES $rng"
+        return nothing
+    end
+
+    rowname = card.f3
+    val = parse(Float64, card.f4)
+    row = get(qps.conindices, rowname, -2)
+    if row == 0 || row == -1
+        # Objective row
+        error("Encountered objective row $rowname in RANGES section")
+    elseif row > 0
+        rtype = qps.contypes[row]
+        if rtype == RTYPE_E
+            if val >= 0.0
+                qps.ucon += val
             else
-                # This row was not declared
-                error("Unknown row $fun.")
+                qps.lcon[row] += val
             end
+        elseif rtype == RTYPE_L
+            qps.lcon[row] = qps.ucon[row] - abs(val)
+        elseif rtype == RTYPE_G
+            qps.ucon[row] = qps.lcon[row] + abs(val)
         end
-        pos = position(qps)
+    else
+        # This row was not declared
+        error("Unknown row $rowname.")
     end
-    seek(qps, pos)  # backtrack to beginning of line
-    # @debug "" nvar ncon minimum(arows) maximum(arows) minimum(acols) maximum(acols)
-    return nvar, varnames, varindices, c, arows, acols, avals
-end
 
-function read_rhs_section(qps, objname, conindices, contypes)
-    # @debug "reading rhs section"
+    card.nfields >= 6 || return nothing
 
-    rhsname = ""
-    rhs_name_read = false
-    rim_rhs_detected = false
-
-    ncon = length(contypes)
-    lcon = Vector{Float64}(undef, ncon)  # zeros(ncon)  # lower bounds are zero unless specified
-    fill!(lcon, -Inf)
-    ucon = Vector{Float64}(undef, ncon)
-    fill!(ucon, Inf)
-
-    # insert default rhs of zero in case a row isn't mentioned
-    for j = 1 : ncon
-        if contypes[j] == "L" || contypes[j] == "E"
-            ucon[j] = 0.0
-        end
-        if contypes[j] == "G" || contypes[j] == "E"
-            lcon[j] = 0.0
-        end
-    end
-    # @show lcon
-    # @show ucon
-
-    c0 = 0.0
-
-    pos = position(qps)
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
-        end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
-
-        rhs = strip(line[5:12])
-        if !rhs_name_read
-            # Record this as the RHS
-            rhsname = rhs
-            rhs_name_read = true
-        elseif rhsname != rhs
-            # Rim RHS, ignore this line
-            rim_rhs_detected || @warn "Detected rim RHS $rhs"
-            @error "Skipping line for rim RHS $rhs"
-            rim_rhs_detected = true
-            pos = position(qps)
-            continue
-        end
-
-        fun = strip(line[15:22])
-        val = parse(Float64, strip(line[25:min(l,36)]))
-        # @info "" fun val
-        row = get(conindices, fun, -2)
-        if row == 0
-            # Objective row
-            c0 = -val
-        elseif row == -1
-            # Rim objective, ignore this input
-            @error "Ignoring RHS for rim objective $fun"
-        elseif row > 0
-            if contypes[row] == "L" || contypes[row] == "E"
-                ucon[row] = val
-            end
-            if contypes[row] == "G" || contypes[row] == "E"
-                lcon[row] = val
-            end
-        else
-            # This row was not declared
-            error("Unknown row $fun.")
-        end
-        if l ≥ 50
-            fun = strip(line[40:47])
-            val = parse(Float64, strip(line[50:min(l,61)]))
-            row = get(conindices, fun, -2)
-            if row == 0
-                # Objective row
-                c0 = -val
-            elseif row == -1
-                # Rim objective, ignore this input
-                @error "Ignoring RHS for rim objective $fun"
-            elseif row > 0
-                if contypes[row] == "L" || contypes[row] == "E"
-                    ucon[row] = val
-                end
-                if contypes[row] == "G" || contypes[row] == "E"
-                    lcon[row] = val
-                end
+    rowname = card.f5
+    val = parse(Float64, card.f6)
+    row = get(qps.conindices, rowname, -2)
+    if row == 0 || row == -1
+        # Objective row
+        error("Encountered objective row $rowname in RANGES section")
+    elseif row > 0
+        rtype = qps.contypes[row]
+        if rtype == RTYPE_E
+            if val >= 0.0
+                qps.ucon += val
             else
-                # This row was not declared
-                error("Unknown row $fun.")
+                qps.lcon[row] += val
             end
+        elseif rtype == RTYPE_L
+            qps.lcon[row] = qps.ucon[row] - abs(val)
+        elseif rtype == RTYPE_G
+            qps.ucon[row] = qps.lcon[row] + abs(val)
         end
-
-        pos = position(qps)
+    else
+        # This row was not declared
+        error("Unknown row $rowname.")
     end
-    seek(qps, pos)  # backtrack to beginning of line
-    return rhsname, c0, lcon, ucon
+
+    return nothing
 end
 
-function read_ranges_section!(qps, conindices, contypes, lcon, ucon)
-    # @debug "reading ranges section"
-    rngname = ""
-    range_name_read = false
-    rim_rng_detected = false
+function read_bounds_line!(qps::QPSData, card::MPSCard)
+    # Sanity check
+    card.nfields >= 3 || error("BOUNDS lines must have at least 3 fields")
 
-    pos = position(qps)
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
-        end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
-
-        rng = strip(line[5:12])
-        if !range_name_read
-            # Record name
-            rngname = rng
-            range_name_read = true
-        elseif rng != rngname
-            # Rim range, ignore this line
-            rim_rng_detected || @warn "Detected rim range $rng"
-            rim_rng_detected = true
-            @error "Skipping line for rim range $rng"
-            pos = position(qps)
-            continue
-        end
-
-        fun = strip(line[15:22])
-        val = parse(Float64, strip(line[25:min(l,36)]))
-        # @info "" fun val
-        j = conindices[fun]
-        j >= 1 || error("Encountered objective row $fun in RANGES section")
-        if contypes[j] == "E"
-            @warn "not sure what a range is for an equality constraint! Skipping."
-            continue
-        end
-        if contypes[j] == "G"
-            ucon[j] = lcon[j] + abs(val)
-        end
-        if contypes[j] == "L"
-            lcon[j] = ucon[j] - abs(val)
-        end
-
-        if l ≥ 50
-            fun = strip(line[40:47])
-            val = parse(Float64, strip(line[50:min(l,61)]))
-            j = conindices[fun]
-            j >= 1 || error("Encountered objective row $fun in RANGES section")
-            if contypes[j] == "E"
-                @warn "not sure what a range is for an equality constraint! Skipping."
-                continue
-            end
-            if contypes[j] == "G"
-                ucon[j] = lcon[j] + abs(val)
-            end
-            if contypes[j] == "L"
-                lcon[j] = ucon[j] - abs(val)
-            end
-        end
-
-        pos = position(qps)
+    bnd = card.f2
+    if isnothing(qps.bndname)
+        # Record this as the BOUNDS
+        qps.bndname = bnd
+    elseif qps.bndname != bnd
+        # Rim BOUNDS, ignore this line
+        @error "Skipping line with rim bound $bnd"
+        return nothing
     end
-    seek(qps, pos)  # backtrack to beginning of line
-    return rngname
+
+    varname = card.f3
+    col = get(qps.varindices, varname, 0)
+    col > 0 || error("Unknown column $varname")
+
+    btype = card.f1
+
+    if btype == "FR"
+        qps.lvar[col] = -Inf
+        qps.uvar[col] = Inf
+        return nothing
+    elseif btype == "MI"
+        qps.lvar[col] = -Inf
+        return nothing
+    elseif btype == "PL"
+        qps.uvar[col] = Inf
+        return nothing
+    elseif btype == "BV"
+        # TODO: error or just record bounds?
+        error("Binary variables are currently not supported")
+        return nothing
+    elseif btype == "SC"
+        # TODO: warning?
+        error("Semi-continuous variables are currently not supported")
+        return nothing
+    end
+
+    card.nfields >= 4 || error("At least 4 fields are required for $btype bounds")
+    val = parse(Float64, card.f4)
+
+    if btype == "LO"
+        qps.lvar[col] = val
+    elseif btype == "UP"
+        qps.uvar[col] = val
+    elseif btype == "FX"
+        qps.lvar[col] = val
+        qps.uvar[col] = val
+    elseif btype == "LI"
+        # TODO: warning?
+        @warn "recording bound but integer variables currently not supported"
+        qps.lvar[col] = val
+    elseif btype == "UI"
+        # TODO: warning?
+        @warn "recording bound but integer variables currently not supported"
+        qps.uvar[col] = val
+    end
+
+    return nothing
 end
 
-function read_bounds_section(qps, nvar, varindices)
-    # @debug "reading bounds section"
+function read_quadobj_line!(qps::QPSData, card::MPSCard)
+    # Sanity check
+    card.nfields >= 4 || error("QUADOBJ lines must have at least 4 fields")
 
-    bndname = ""
-    bound_name_read = false
-    rim_bnd_detected = false
+    colname = card.f2
+    rowname = card.f3
+    val = parse(Float64, card.f4)
 
-    lvar = zeros(nvar)  # lower bounds are zero unless specified
-    uvar = Vector{Float64}(undef, nvar)
-    fill!(uvar, Inf)
+    col = get(qps.varindices, colname, 0)
+    col > 0 || error("Unknown variable $colname")
+    row = get(qps.varindices, rowname, 0)
+    row > 0 || error("Unknown variable $rowname")
 
-    pos = position(qps)
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
-        end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
+    push!(qps.qcols, col)
+    push!(qps.qrows, row)
+    push!(qps.qvals, val)
 
-        bndtype = line[2:3]
-        bndtype in bounds_types || error("erroneous bound type $bndtype")
-        bnd = strip(line[5:12])  # when present, is the bound name
-
-        if !bound_name_read
-            # Record
-            bndname = bnd
-            bound_name_read = true
-        elseif bnd != bndname
-            # Rim bound field. Ignore this line
-            rim_bnd_detected || @warn "Detected rim bound with name $bnd"
-            @error "Skipping line for rim bound $bnd"
-            rim_bnd_detected = true
-            pos = position(qps)
-            continue
-        end
-
-        varname = strip(line[15:min(l,22)])
-        # @debug "" bndtype varname
-        i = varindices[varname]
-        if bndtype == "FR"
-            lvar[i] = -Inf
-            pos = position(qps)
-            continue
-        end
-        if bndtype == "MI"
-            lvar[i] = -Inf
-            uvar[i] = 0.0
-            pos = position(qps)
-            continue
-        end
-        if bndtype == "PL"
-            lvar[i] = 0.0
-            uvar[i] = Inf
-            pos = position(qps)
-            continue
-        end
-        if bndtype == "BV"
-            @warn "binary variables currently not supported"
-            pos = position(qps)
-            continue
-        end
-        if bndtype == "SC"
-            @warn "semi-continuous variables currently not supported"
-            pos = position(qps)
-            continue
-        end
-
-        val = parse(Float64, strip(line[25:min(l,36)]))
-        # @debug "" val
-        if bndtype == "LO"
-            lvar[i] = val
-        end
-        if bndtype == "UP"
-            uvar[i] = val
-        end
-        if bndtype == "FX"
-            lvar[i] = val
-            uvar[i] = val
-        end
-        if bndtype == "LI"
-            @warn "recording bound but integer variables currently not supported"
-            lvar[i] = val
-            uvar[i] = Inf
-        end
-        if bndtype == "UI"
-            @warn "recording bound but integer variables currently not supported"
-            lvar[i] = 0.0
-            uvar[i] = val
-        end
-
-        pos = position(qps)
-    end
-    seek(qps, pos)  # backtrack to beginning of line
-    return bndname, lvar, uvar
+    return nothing
 end
-
-function read_quadobj_section(qps, varindices)
-    # @debug "reading quadobj section"
-
-    qrows = Int[]
-    qcols = Int[]
-    qvals = Float64[]
-
-    pos = position(qps)
-    while true
-        line = readline(qps)
-        l = length(line)
-        if length(strip(line)) == 0
-            pos = position(qps)
-            continue  # this line is blank
-        end
-        if line[1] == '*'
-            pos = position(qps)
-            continue  # this line is a comment
-        end
-        is_section_header(line) && break  # reached the end of this section
-
-        # read lower triangle, i.e., row ≥ col
-        col = varindices[strip(line[5:12])]
-        row = varindices[strip(line[15:22])]
-        val = parse(Float64, strip(line[25:min(l,36)]))
-        push!(qrows, row)
-        push!(qcols, col)
-        push!(qvals, val)
-
-        pos = position(qps)
-    end
-    seek(qps, pos)  # backtrack to beginning of line
-    return qrows, qcols, qvals
-end
-
 
 function readqps(filename::String)
     name_section_read = false
@@ -563,128 +598,101 @@ function readqps(filename::String)
     quadobj_section_read = false
     endata_read = false
 
-    name = ""
-    objname = ""
-    rhsname = ""
-    bndname = ""
-    rngname = ""
+    sec = -1
 
-    varnames = String[]
-    connames = String[]
-    varindices = Dict{String,Int}()
-    conindices = Dict{String,Int}()
-    contypes = String[]
+    card = MPSCard(false, false, 0, "", "", "", "", "", "")
 
-    objsense = :notset
-    c0 = 0.0
-    c = Float64[]
-    arows, acols, avals = Int[], Int[], Float64[]
-    qrows, qcols, qvals = Int[], Int[], Float64[]
-    nvar = 0
-    ncon = 0
-    lcon = Float64[]
-    ucon = Float64[]
-    lvar = Float64[]
-    uvar = Float64[]
+    qpsdat = QPSData(
+        0, 0,
+        :notset, 0.0, Float64[], Int64[], Int64[], Float64[],
+        Int64[], Int64[], Float64[], Float64[], Float64[],
+        Float64[], Float64[],
+        nothing, nothing, nothing, nothing, nothing,
+        String[], String[],
+        Dict{String, Int}(), Dict{String, Int}(), Int[]
+    )
 
     qps = open(filename, "r")
     seekstart(qps)
     while !eof(qps)
         line = readline(qps)
-        strip(line) in sifsections && continue
-        line = strip.(split(line))
-        length(line) == 0 && continue  # this line is blank
-        (line[1][1] == '*' || line[1][1] == '&') && continue  # this line is a comment
-        section = line[1]
-        rest = length(line) == 1 ? "" : join(line[2:end], " ")
-        # @debug "" section rest
-        section in sections || error("erroneous section $section")
-        if section == "ENDATA"
-            # @debug "found ENDATA"
-            endata_read = true
-            break
+        read_card!(card, line)
+
+        card.iscomment && continue
+
+        if card.isheader
+            sec = section_header(card.f1)
+            if sec == NAME
+                name_section_read && error("more than one NAME section specified")
+                qpsdat.name = card.f2
+                name_section_read = true
+            elseif sec == OBJ_SENSE
+                objsense_section_read && error("more than one OBJSENSE section specified")
+                objsense_section_read = true
+            elseif sec == ROWS
+                rows_section_read && error("more than one ROWS section specified")
+                rows_section_read = true
+            elseif sec == COLUMNS
+                columns_section_read && error("more than one COLUMNS section specified")
+                rows_section_read || error("ROWS section must come before COLUMNS section")
+                columns_section_read = true
+            elseif sec == RHS
+                rhs_section_read && error("more than one RHS section specified")
+                rows_section_read || error("ROWS section must come before RHS section")
+                columns_section_read || error("COLUMNS section must come before RHS section")
+                rhs_section_read = true
+            elseif sec == BOUNDS
+                bounds_section_read && error("more than one BOUNDS section specified")
+                columns_section_read || error("COLUMNS section must come before BOUNDS section")
+                bounds_section_read = true
+            elseif sec == RANGES
+                ranges_section_read && error("more than one RANGES section specified")
+                rhs_section_read || error("RHS section must come before RANGES section")
+                ranges_section_read = true
+            elseif sec == QUADOBJ
+                quadobj_section_read && error("more than one QUADOBJ section specified")
+                columns_section_read || error("COLUMNS section must come before QUADOBJ section")
+                quadobj_section_read = true
+            elseif sec == ENDATA
+                endata_read && error("more than one ENDATA section specified")
+                endata_read = true
+                break
+            elseif sec == OBJECT_BOUND
+                # Do nothing
+            end
+            continue
         end
-        if section == "NAME"
-            name_section_read && error("more than one NAME section specified")
-            name = read_name_section(qps, rest)
-            name_section_read = true
-        end
-        if section == "OBJSENSE"
-            objsense_section_read && error("more than one OBJSENSE section specified")
-            objsense = read_objsense_section(qps)
-            objsense_section_read = true
-        end
-        if section == "ROWS"
-            rows_section_read && error("more than one ROWS section specified")
-            ncon, objname, conindices, connames, contypes = read_rows_section(qps)
-            rows_section_read = true
-        end
-        if section == "COLUMNS"
-            columns_section_read && error("more than one COLUMNS section specified")
-            rows_section_read || error("ROWS section must come before COLUMNS section")
-            nvar, varnames, varindices, c, arows, acols, avals = read_columns_section(qps, objname, conindices)
-            columns_section_read = true
-            # @show c
-            # @show A
-        end
-        if section == "RHS"
-            rhs_section_read && error("more than one RHS section specified")
-            name_section_read || error("NAME section must come before RHS section")
-            columns_section_read || error("COLUMNS section must come before RHS section")
-            rhsname, c0, lcon, ucon = read_rhs_section(qps, objname, conindices, contypes)
-            rhs_section_read = true
-            # @show c0
-            # @show lcon
-            # @show ucon
-        end
-        if section == "RANGES"
-            ranges_section_read && error("more than one RANGES section specified")
-            rhs_section_read || error("RHS section must come before RANGES section")
-            rngname = read_ranges_section!(qps, conindices, contypes, lcon, ucon)
-            ranges_section_read = true
-            # @show lcon
-            # @show ucon
-        end
-        if section == "BOUNDS"
-            bounds_section_read && error("more than one BOUNDS section specified")
-            columns_section_read || error("COLUMNS section must come before BOUNDS section")
-            bndname, lvar, uvar = read_bounds_section(qps, nvar, varindices)
-            bounds_section_read = true
-            # @show lvar
-            # @show uvar
-        end
-        if section == "QUADOBJ"
-            columns_section_read || error("COLUMNS section must come before QUADOBJ section")
-            qrows, qcols, qvals = read_quadobj_section(qps, varindices)
-            quadobj_section_read = true
+
+        # Line is not a comment/empty line, nor a section header
+        if sec == OBJ_SENSE
+            # Parse objective sense
+            read_objsense_line!(qpsdat, card)
+        elseif sec == ROWS
+            read_rows_line!(qpsdat, card)
+        elseif sec == COLUMNS
+            read_columns_line!(qpsdat, card)
+        elseif sec == RHS
+            read_rhs_line!(qpsdat, card)
+        elseif sec == BOUNDS
+            read_bounds_line!(qpsdat, card)
+        elseif sec == RANGES
+            read_ranges_line!(qpsdat, card)
+        elseif sec == QUADOBJ
+            read_quadobj_line!(qpsdat, card)
+        else
+            error("Unexpected section $sec in line\n$line")
         end
     end
     close(qps)
 
     endata_read || @error("reached end of file before ENDATA section")
 
-    # check if optional sections were missing
-    if !bounds_section_read
-        lvar = zeros(nvar)
-        uvar = Vector{Float64}(undef, nvar)
-        fill!(uvar, Inf)
-    end
+    @info("Problem name     : $(qpsdat.name)")
+    @info("Objective sense  : $(qpsdat.objsense)")
+    @info("Objective name   : $(qpsdat.objname)")
+    rhs_section_read && @info("RHS              : $(qpsdat.rhsname)")
+    ranges_section_read && @info("RANGES           : $(qpsdat.rngname)")
+    bounds_section_read && @info("BOUNDS           : $(qpsdat.bndname)")
 
-    # Print problem names
-    @info("Problem name     : $name")
-    @info("Objective sense  : $objsense")
-    @info("Objective name   : $objname")
-    rhs_section_read && @info("RHS              : $rhsname")
-    ranges_section_read && @info("RANGES           : $rngname")
-    bounds_section_read && @info("BOUNDS           : $bndname")
-
-    return QPSData(
-        nvar, ncon,
-        objsense, c0, c, qrows, qcols, qvals,
-        arows, acols, avals, lcon, ucon,
-        lvar, uvar,
-        name, objname, rhsname, bndname, rngname,
-        varnames, connames,
-        varindices, conindices
-    )
+    return qpsdat
 end

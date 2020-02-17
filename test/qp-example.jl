@@ -15,7 +15,7 @@ using SparseArrays
         (:info, "Objective sense  : notset"),
         (:info, "Objective name   : obj"),
         (:info, "RHS              : rhs1"),
-        (:info, "RANGES           : "),
+        (:info, "RANGES           : nothing"),
         (:info, "BOUNDS           : bnd1"),
         match_mode = :all,
         readqps("dat/qp-example.qps")
@@ -25,7 +25,7 @@ using SparseArrays
     @test qp.objname == "obj"
     @test qp.rhsname == "rhs1"
     @test qp.bndname == "bnd1"
-    @test qp.rngname == ""
+    @test isnothing(qp.rngname)
 
     @test qp.nvar == 2
     @test qp.ncon == 2
