@@ -43,10 +43,12 @@ end
 Data structure for parsing a single line of an MPS file.
 """
 mutable struct MPSCard
-    iscomment::Bool 
-    isheader::Bool
+    nline::Int       # Line number
+    iscomment::Bool  # Is this line a comment/empty line?
+    isheader::Bool   # Is this line a section header?
 
     nfields::Int  # Number of fields that were read
+
     # MPS fields
     f1::String
     f2::String
@@ -246,7 +248,9 @@ end
 """
 function read_rows_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 2 || error("ROWS lines must contain at least two fields.")
+    card.nfields >= 2 || error(
+        "Line $(card.nline) contains only $(card.nfields) fields"
+    )
 
     rtype = row_type(card.f1)
     rowname = card.f2
@@ -259,7 +263,7 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
             qps.conindices[rowname] = 0
         else
             # Record name but ignore input
-            @warn "Detected rim objective row $rowname."
+            @warn "Detected rim objective row $rowname at line $(card.nline)"
             qps.conindices[rowname] = -1
         end
 
@@ -269,7 +273,7 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
     # Regular row
     ncon = qps.ncon + 1
     ridx = get!(qps.conindices, rowname, ncon)
-    ridx == ncon || error("Duplicate row name $rowname")
+    ridx == ncon || error("Duplicate row name $rowname at line $(card.nline)")
     qps.ncon += 1
 
     # Record row sense
@@ -294,7 +298,9 @@ end
 
 function read_columns_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error("COLUMNS lines must have at least 4 fields")
+    card.nfields >= 4 || error(
+        "Line $(card.nline) contains only $(card.nfields) fields"
+    )
 
     varname = card.f2
     nvar = qps.nvar + 1
@@ -321,7 +327,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         qps.c[col] = val
     elseif row == -1
         # Rim objective, ignore this input
-        @error "Ignoring coefficient ($fun, $varname) with value $val"
+        @error "Ignoring coefficient ($fun, $varname) with value $val at line $(card.nline)"
     elseif row > 0
         # Record coefficient
         push!(qps.arows, row)
@@ -329,7 +335,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         push!(qps.avals, val)
     else
         # This row was not declared
-        error("Unknown row $fun.")
+        error("Unknown row $fun at line $(card.nline)")
     end
 
     card.nfields >= 6 || return nothing
@@ -344,7 +350,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         qps.c[col] = val
     elseif row == -1
         # Rim objective, ignore this input
-        @error "Ignoring coefficient ($fun, $varname) with value $val"
+        @error "Ignoring coefficient ($fun, $varname) with value $val at line $(card.nline)"
     elseif row > 0
         # Record coefficient
         push!(qps.arows, row)
@@ -352,7 +358,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         push!(qps.avals, val)
     else
         # This row was not declared
-        error("Unknown row $fun.")
+        error("Unknown row $fun at line $(card.nline)")
     end
 
     return nothing
@@ -360,7 +366,9 @@ end
 
 function read_rhs_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error("RHS lines must have at least 4 fields")
+    card.nfields >= 4 || error(
+        "Line $(card.nline) contains only $(card.nfields) fields"
+    )
 
     rhs = card.f2
     if isnothing(qps.rhsname)
@@ -368,7 +376,7 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         qps.rhsname = rhs
     elseif qps.rhsname != rhs
         # Rim RHS, ignore this line
-        @error "Skipping line with rim RHS $rhs"
+        @error "Skipping line $(card.nline) with rim RHS $rhs"
         return nothing
     end
 
@@ -380,7 +388,7 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         qps.c0 = -val
     elseif row == -1
         # Rim objective, ignore this input
-        @error "Ignoring RHS for rim objective $fun"
+        @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
     elseif row > 0
         rtype = qps.contypes[row]
         if rtype == RTYPE_E
@@ -406,7 +414,7 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         qps.c0 = -val
     elseif row == -1
         # Rim objective, ignore this input
-        @error "Ignoring RHS for rim objective $fun"
+        @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
     elseif row > 0
         rtype = qps.contypes[row]
         if rtype == RTYPE_E
@@ -419,7 +427,7 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         end
     else
         # This row was not declared
-        error("Unknown row $fun.")
+        error("Unknown row $fun")
     end
 
     return nothing
@@ -439,7 +447,9 @@ row type       sign of r       h          u
 """
 function read_ranges_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error("RANGES lines must have at least 4 fields")
+    card.nfields >= 4 || error(
+        "Line $(card.nline) contains only $(card.nfields) fields"
+    )
     
     rng = card.f2
     if isnothing(qps.rngname)
@@ -447,7 +457,7 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         qps.rngname = rng
     elseif qps.rngname != rng
         # Rim RANGES, ignore this line
-        @error "Skipping line with rim RANGES $rng"
+        @error "Skipping line $(card.nline) with rim RANGES $rng"
         return nothing
     end
 
@@ -506,7 +516,9 @@ end
 
 function read_bounds_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 3 || error("BOUNDS lines must have at least 3 fields")
+    card.nfields >= 3 || error(
+        "Line $(card.nline) contains only $(card.nfields) fields"
+    )
 
     bnd = card.f2
     if isnothing(qps.bndname)
@@ -514,7 +526,7 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
         qps.bndname = bnd
     elseif qps.bndname != bnd
         # Rim BOUNDS, ignore this line
-        @error "Skipping line with rim bound $bnd"
+        @error "Skipping line $(card.nline) with rim bound $bnd"
         return nothing
     end
 
@@ -569,7 +581,9 @@ end
 
 function read_quadobj_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error("QUADOBJ lines must have at least 4 fields")
+    card.nfields >= 4 || error(
+        "Line $(card.nline) contains only $(card.nfields) fields"
+    )
 
     colname = card.f2
     rowname = card.f3
@@ -600,7 +614,7 @@ function readqps(filename::String)
 
     sec = -1
 
-    card = MPSCard(false, false, 0, "", "", "", "", "", "")
+    card = MPSCard(0, false, false, 0, "", "", "", "", "", "")
 
     qpsdat = QPSData(
         0, 0,
@@ -617,6 +631,7 @@ function readqps(filename::String)
     while !eof(qps)
         line = readline(qps)
         read_card!(card, line)
+        card.nline += 1
 
         card.iscomment && continue
 
@@ -640,14 +655,16 @@ function readqps(filename::String)
                 rhs_section_read && error("more than one RHS section specified")
                 rows_section_read || error("ROWS section must come before RHS section")
                 columns_section_read || error("COLUMNS section must come before RHS section")
+                ranges_section_read && error("RHS section must come before RANGES section")
                 rhs_section_read = true
             elseif sec == BOUNDS
                 bounds_section_read && error("more than one BOUNDS section specified")
                 columns_section_read || error("COLUMNS section must come before BOUNDS section")
                 bounds_section_read = true
             elseif sec == RANGES
+                rows_section_read || error("ROWS section must come before RHS section")
+                columns_section_read || error("COLUMNS section must come before RHS section")
                 ranges_section_read && error("more than one RANGES section specified")
-                rhs_section_read || error("RHS section must come before RANGES section")
                 ranges_section_read = true
             elseif sec == QUADOBJ
                 quadobj_section_read && error("more than one QUADOBJ section specified")
