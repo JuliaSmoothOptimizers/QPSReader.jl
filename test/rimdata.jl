@@ -3,13 +3,13 @@
     @testset "Objective" begin
 
         qp = @test_logs(
-            (:warn, "Detected rim objective row obj2."),
-            (:warn, "Detected rim objective row obj3."),
-            (:error, "Ignoring coefficient (obj2, c1) with value 2.2"),
-            (:error, "Ignoring coefficient (obj2, c2) with value -2.2"),
-            (:error, "Ignoring coefficient (obj3, c1) with value 2.3"),
-            (:error, "Ignoring coefficient (obj3, c2) with value -2.3"),
-            (:error, "Ignoring RHS for rim objective obj2"),
+            (:warn, "Detected rim objective row obj2 at line 4"),
+            (:warn, "Detected rim objective row obj3 at line 7"),
+            (:error, "Ignoring coefficient (obj2, c1) with value 2.2 at line 10"),
+            (:error, "Ignoring coefficient (obj2, c2) with value -2.2 at line 12"),
+            (:error, "Ignoring coefficient (obj3, c1) with value 2.3 at line 13"),
+            (:error, "Ignoring coefficient (obj3, c2) with value -2.3 at line 14"),
+            (:error, "Ignoring RHS for rim objective obj2 at line 16"),
             (:info, "Problem name     : RimObj"),
             (:info, "Objective sense  : notset"),
             (:info, "Objective name   : obj1"),
@@ -37,9 +37,9 @@
     @testset "RHS" begin
         qp = @test_logs(
             # These logs should appear in exactly this order
-            (:error, "Skipping line with rim RHS rhs2"),
-            (:error, "Skipping line with rim RHS rhs2"),
-            (:error, "Skipping line with rim RHS rhs3"),
+            (:error, "Skipping line 13 with rim RHS rhs2"),
+            (:error, "Skipping line 15 with rim RHS rhs2"),
+            (:error, "Skipping line 16 with rim RHS rhs3"),
             (:info, "Problem name     : RimRHS"),
             (:info, "Objective sense  : notset"),
             (:info, "Objective name   : obj1"),
@@ -60,7 +60,7 @@
         qp = @test_logs(
             # These logs should appear in exactly this order
             # (:warn, "Detected rim range rng2"),
-            (:error, "Skipping line with rim RANGES rng2"),
+            (:error, "Skipping line 16 with rim RANGES rng2"),
             (:info, "Problem name     : RimRANGES"),
             (:info, "Objective sense  : notset"),
             (:info, "Objective name   : obj1"),
@@ -80,8 +80,8 @@
         qp = @test_logs(
             # These logs should appear in exactly this order
             # (:warn, "Detected rim range rng2"),
-            (:error, "Skipping line with rim bound bnd2"),
-            (:error, "Skipping line with rim bound bnd2"),
+            (:error, "Skipping line 13 with rim bound bnd2"),
+            (:error, "Skipping line 15 with rim bound bnd2"),
             (:info, "Problem name     : RimObj"),
             (:info, "Objective sense  : notset"),
             (:info, "Objective name   : obj"),
