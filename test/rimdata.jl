@@ -3,7 +3,8 @@
     @testset "Objective" begin
 
         qp = @test_logs(
-            (:warn, "Detected rim objective obj2.\nThis row and subsequent objective rows will be ignored."),
+            (:warn, "Detected rim objective row obj2."),
+            (:warn, "Detected rim objective row obj3."),
             (:error, "Ignoring coefficient (obj2, c1) with value 2.2"),
             (:error, "Ignoring coefficient (obj2, c2) with value -2.2"),
             (:error, "Ignoring coefficient (obj3, c1) with value 2.3"),
@@ -35,11 +36,10 @@
 
     @testset "RHS" begin
         qp = @test_logs(
-            # These logs must appear in exactly this order
-            (:warn, "Detected rim RHS rhs2"),
-            (:error, "Skipping line for rim RHS rhs2"),
-            (:error, "Skipping line for rim RHS rhs2"),
-            (:error, "Skipping line for rim RHS rhs3"),
+            # These logs should appear in exactly this order
+            (:error, "Skipping line with rim RHS rhs2"),
+            (:error, "Skipping line with rim RHS rhs2"),
+            (:error, "Skipping line with rim RHS rhs3"),
             (:info, "Problem name     : RimRHS"),
             (:info, "Objective sense  : notset"),
             (:info, "Objective name   : obj1"),
@@ -57,18 +57,18 @@
     end
 
     @testset "Range" begin
-    qp = @test_logs(
-        # These logs must appear in exactly this order
-        (:warn, "Detected rim range rng2"),
-        (:error, "Skipping line for rim range rng2"),
-        (:info, "Problem name     : RimRANGES"),
-        (:info, "Objective sense  : notset"),
-        (:info, "Objective name   : obj1"),
-        (:info, "RHS              : rhs1"),
-        (:info, "RANGES           : rng1"),
-        match_mode = :all,
-        readqps("dat/rim_rng.qps")
-    )
+        qp = @test_logs(
+            # These logs should appear in exactly this order
+            # (:warn, "Detected rim range rng2"),
+            (:error, "Skipping line with rim RANGES rng2"),
+            (:info, "Problem name     : RimRANGES"),
+            (:info, "Objective sense  : notset"),
+            (:info, "Objective name   : obj1"),
+            (:info, "RHS              : rhs1"),
+            (:info, "RANGES           : rng1"),
+            match_mode = :all,
+            readqps("dat/rim_rng.qps")
+        )
 
         @test qp.rngname == "rng1"
 
@@ -77,6 +77,23 @@
     end
 
     @testset "Bounds" begin
+        qp = @test_logs(
+            # These logs should appear in exactly this order
+            # (:warn, "Detected rim range rng2"),
+            (:error, "Skipping line with rim bound bnd2"),
+            (:error, "Skipping line with rim bound bnd2"),
+            (:info, "Problem name     : RimObj"),
+            (:info, "Objective sense  : notset"),
+            (:info, "Objective name   : obj"),
+            (:info, "BOUNDS           : bnd1"),
+            match_mode = :all,
+            readqps("dat/rim_bnd.qps")
+        )
+
+        @test qp.bndname == "bnd1"
+
+        @test qp.lvar == [0.0, 1.0]
+        @test qp.uvar == [20.0, Inf]
     end
 
 end
