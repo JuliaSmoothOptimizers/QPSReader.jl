@@ -257,10 +257,11 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
 
     if rtype == RTYPE_N
         # Objective row
-        if isnothing(qps.objname)
+        if qps.objname === nothing
             # Record objective
             qps.objname = rowname
             qps.conindices[rowname] = 0
+            @info "Using '$rowname' as objective (l. $(card.nline))"
         else
             # Record name but ignore input
             @warn "Detected rim objective row $rowname at line $(card.nline)"
@@ -371,9 +372,10 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
     )
 
     rhs = card.f2
-    if isnothing(qps.rhsname)
+    if qps.rhsname === nothing
         # Record this as the RHS
         qps.rhsname = rhs
+        @info "Using '$rhs' as RHS (l. $(card.nline))"
     elseif qps.rhsname != rhs
         # Rim RHS, ignore this line
         @error "Skipping line $(card.nline) with rim RHS $rhs"
@@ -452,9 +454,10 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
     )
     
     rng = card.f2
-    if isnothing(qps.rngname)
+    if qps.rngname === nothing
         # Record this as the RANGES
         qps.rngname = rng
+        @info "Using '$rng' as RANGES (l. $(card.nline))"
     elseif qps.rngname != rng
         # Rim RANGES, ignore this line
         @error "Skipping line $(card.nline) with rim RANGES $rng"
@@ -521,9 +524,10 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
     )
 
     bnd = card.f2
-    if isnothing(qps.bndname)
+    if qps.bndname === nothing
         # Record this as the BOUNDS
         qps.bndname = bnd
+        @info "Using '$bnd' as BOUNDS (l. $(card.nline))"
     elseif qps.bndname != bnd
         # Rim BOUNDS, ignore this line
         @error "Skipping line $(card.nline) with rim bound $bnd"
@@ -641,6 +645,7 @@ function readqps(filename::String)
                 name_section_read && error("more than one NAME section specified")
                 qpsdat.name = card.f2
                 name_section_read = true
+                @info "Using '$(qpsdat.name)' as NAME (l. $(card.nline))"
             elseif sec == OBJ_SENSE
                 objsense_section_read && error("more than one OBJSENSE section specified")
                 objsense_section_read = true
@@ -703,13 +708,6 @@ function readqps(filename::String)
     close(qps)
 
     endata_read || @error("reached end of file before ENDATA section")
-
-    @info("Problem name     : $(qpsdat.name)")
-    @info("Objective sense  : $(qpsdat.objsense)")
-    @info("Objective name   : $(qpsdat.objname)")
-    rhs_section_read && @info("RHS              : $(qpsdat.rhsname)")
-    ranges_section_read && @info("RANGES           : $(qpsdat.rngname)")
-    bounds_section_read && @info("BOUNDS           : $(qpsdat.bndname)")
 
     return qpsdat
 end
