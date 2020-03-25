@@ -11,12 +11,10 @@ using SparseArrays
     # Note that logs won't display since they are captured by the test macro
     qp = @test_logs(
         # These logs must appear in exactly this order
-        (:info, "Problem name     : QP example"),
-        (:info, "Objective sense  : notset"),
-        (:info, "Objective name   : obj"),
-        (:info, "RHS              : rhs1"),
-        (:info, "RANGES           : nothing"),
-        (:info, "BOUNDS           : bnd1"),
+        (:info, "Using 'QP example' as NAME (l. 1)"),
+        (:info, "Using 'obj' as objective (l. 3)"),
+        (:info, "Using 'rhs1' as RHS (l. 12)"),
+        (:info, "Using 'bnd1' as BOUNDS (l. 16)"),
         match_mode = :all,
         readqps("dat/qp-example.qps")
     )
@@ -25,7 +23,7 @@ using SparseArrays
     @test qp.objname == "obj"
     @test qp.rhsname == "rhs1"
     @test qp.bndname == "bnd1"
-    @test isnothing(qp.rngname)
+    @test qp.rngname === nothing
 
     @test qp.nvar == 2
     @test qp.ncon == 2
