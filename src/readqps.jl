@@ -260,7 +260,7 @@ function read_card!(card::MPSCard{FreeMPS}, ln::String)
         card.f1 = String(s[1])
         # Read name, if applicable
         if card.f1 == "NAME"
-            card.f2 = s[2]
+            card.f2 = length(s) >= 2 ? s[2] : ""
             card.nfields = 2
         elseif card.f1 == "OBJECT"
             if s[2] == "BOUND"
