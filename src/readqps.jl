@@ -37,12 +37,16 @@ mutable struct QPSData
     contypes::Vector{Int}
 end
 
+abstract type MPSFormat end
+struct FixedMPS <: MPSFormat end
+struct FreeMPS <: MPSFormat end
+
 """
-    MPSCard
+    MPSCard{Format}
 
 Data structure for parsing a single line of an MPS file.
 """
-mutable struct MPSCard
+mutable struct MPSCard{Format <: MPSFormat}
     nline::Int       # Line number
     iscomment::Bool  # Is this line a comment/empty line?
     isheader::Bool   # Is this line a section header?
@@ -121,11 +125,11 @@ function row_type(rtype::String)
 end
 
 """
-    read_card!(card::MPSCard, ln::String)
+    read_card!(card::MPSCard{FixedMPS}, ln::String)
 
 Read the fields in `ln` into `card`.
 """
-function read_card!(card::MPSCard, ln::String)
+function read_card!(card::MPSCard{FixedMPS}, ln::String)
     l = length(ln)
     if l == 0 || ln[1] == '*' || ln[1] == '&'
         # This line is an empty line, or it is a comment
@@ -232,6 +236,94 @@ function read_card!(card::MPSCard, ln::String)
     return card
 end
 
+"""
+    read_card!(card::MPSCard{FreeMPS}, ln::String)
+
+Read the fields in `ln` into `card`.
+"""
+function read_card!(card::MPSCard{FreeMPS}, ln::String)
+    l = length(ln)
+    if l == 0 || ln[1] == '*' || ln[1] == '&'
+        # This line is an empty line, or it is a comment
+        card.iscomment = true
+        card.isheader = false
+        card.nfields = 0
+
+    elseif !isspace(ln[1])
+        # This line is a section header
+        card.iscomment = false
+        card.isheader = true
+        card.nfields = 1
+
+        # Read section header
+        s = split(ln)
+        card.f1 = String(s[1])
+        # Read name, if applicable
+        if card.f1 == "NAME"
+            card.f2 = s[2]
+            card.nfields = 2
+        elseif card.f1 == "OBJECT"
+            if s[2] == "BOUND"
+                # OBJECT BOUND line
+                card.f1 = "OBJECT BOUND"
+            else
+                error("Unrecognized section header: $ln")
+            end
+        end
+
+    else
+        # Regular card
+        card.iscomment = false
+        card.isheader = false
+
+        # Check if first field is empty
+        l >= 3 || error("Short line\n$ln")
+
+        # Read fields
+        s = split(ln)
+
+        l = length(s)
+        if l == 0
+            # Empty line
+            card.iscomment = true
+            card.isheader = false
+            card.nfields = 0
+            return card
+        end
+
+        first_field_empty = (ln[2] == ' ')
+        l_ = l + first_field_empty  # total number of fields, including a (possibly empty) first field
+        l_ <= 6 || error("Too many fields in line.\n$ln")
+        card.nfields = l_
+
+        if l_ >= 1 
+            card.f1 = first_field_empty ? "" : s[1]
+        end
+
+        if l_ >= 2
+            card.f2 = first_field_empty ? s[1] : s[2]
+        end
+
+        if l_ >= 3
+            card.f3 = first_field_empty ? s[2] : s[3]
+        end
+
+        if l_ >= 4
+            card.f4 = first_field_empty ? s[3] : s[4]
+        end
+
+        if l_ >= 5
+            card.f5 = first_field_empty ? s[4] : s[5]
+        end
+
+        if l_ >= 6
+            card.f6 = first_field_empty ? s[5] : s[6]
+        end
+    end
+
+    return card
+end
+
 function read_objsense_line!(qps::QPSData, card::MPSCard)
     if card.f1 == "MIN"
         qps.objsense = :min
@@ -302,6 +394,12 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
     card.nfields >= 4 || error(
         "Line $(card.nline) contains only $(card.nfields) fields"
     )
+
+    # Ignore markers
+    if card.f3 == "'MARKER'"
+        @error "Ignoring marker $(card.f3) at line $(card.nline)"
+        return nothing
+    end
 
     varname = card.f2
     nvar = qps.nvar + 1
@@ -605,7 +703,7 @@ function read_quadobj_line!(qps::QPSData, card::MPSCard)
     return nothing
 end
 
-function readqps(filename::String)
+function readqps(filename::String; mpsformat::Symbol=:free)
     name_section_read = false
     objsense_section_read = false
     rows_section_read = false
@@ -618,7 +716,15 @@ function readqps(filename::String)
 
     sec = -1
 
-    card = MPSCard(0, false, false, 0, "", "", "", "", "", "")
+    if mpsformat == :fixed
+        Tf = FixedMPS
+    elseif mpsformat == :free
+        Tf = FreeMPS
+    else
+        error("Unsupported format: $mpsformat")
+    end
+
+    card = MPSCard{Tf}(0, false, false, 0, "", "", "", "", "", "")
 
     qpsdat = QPSData(
         0, 0,
@@ -635,7 +741,9 @@ function readqps(filename::String)
     while !eof(qps)
         line = readline(qps)
         read_card!(card, line)
+        
         card.nline += 1
+        # @info "Line $(card.nline)" line card
 
         card.iscomment && continue
 
