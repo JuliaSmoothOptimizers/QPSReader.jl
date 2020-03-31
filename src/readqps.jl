@@ -572,7 +572,7 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         rtype = qps.contypes[row]
         if rtype == RTYPE_E
             if val >= 0.0
-                qps.ucon += val
+                qps.ucon[row] += val
             else
                 qps.lcon[row] += val
             end
@@ -598,7 +598,7 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         rtype = qps.contypes[row]
         if rtype == RTYPE_E
             if val >= 0.0
-                qps.ucon += val
+                qps.ucon[row] += val
             else
                 qps.lcon[row] += val
             end
