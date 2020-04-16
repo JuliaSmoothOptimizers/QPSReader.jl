@@ -137,7 +137,10 @@ function read_card!(card::MPSCard{FixedMPS}, ln::String)
         card.isheader = false
         card.nfields = 0
 
-    elseif !isspace(ln[1])
+        return card
+    end
+
+    if !isspace(ln[1])
         # This line is a section header
         card.iscomment = false
         card.isheader = true
@@ -159,78 +162,75 @@ function read_card!(card::MPSCard{FixedMPS}, ln::String)
             end
         end
 
+        return card
+    end
+
+    # Regular card
+    card.iscomment = false
+    card.isheader = false
+
+    # Read fields
+    # First field
+    if l >= 3
+        card.f1 = strip(String(ln[2:3]))
+        card.nfields = 1
     else
-        # Regular card
-        card.iscomment = false
-        card.isheader = false
+        error("Short line\n$ln")
+    end
 
-        # Read fields
-        # First field
-        if l < 3
-            error("Short line\n$ln")
-        else
-            card.f1 = strip(String(ln[2:3]))
-            card.nfields = 1
-        end
+    # Second field
+    if 5 <= l <= 12
+        card.f2 = strip(String(ln[5:end]))
+        card.nfields = 2
+    elseif l >= 13
+        card.f2 = strip(String(ln[5:12]))
+        card.nfields = 2
+    end
 
-        # Second field
-        if l < 5
-            return card
-        elseif 5 <= l <= 12
-            card.f2 = strip(String(ln[5:end]))
-            card.nfields = 2
-            return card
-        else
-            card.f2 = strip(String(ln[5:12]))
-        end
+    # Third field
+    if 15 <= l <= 22
+        card.f3 = strip(String(ln[15:end]))
+        card.nfields = 3
+    elseif l >= 23
+        card.f3 = strip(String(ln[15:22]))
+        card.nfields = 3
+    end
 
-        # Third field
-        if l < 15
-            card.nfields = 2
-            return card
-        elseif 15 <= l <= 22
-            card.f3 = strip(String(ln[15:end]))
-            card.nfields = 3
-            return card
-        else
-            card.f3 = strip(String(ln[15:22]))
-        end
+    # Fourth field
+    if 25 <= l <= 36
+        card.f4 = strip(String(ln[25:end]))
+        card.nfields = 4
+    elseif l >= 37
+        card.f4 = strip(String(ln[25:36]))
+        card.nfields = 4
+    end
 
-        # Fourth field
-        if l < 25
-            card.nfields = 3
-            return card
-        elseif 25 <= l <= 36
-            card.f4 = strip(String(ln[25:end]))
-            card.nfields = 4
-            return card
-        else
-            card.f4 = strip(String(ln[25:36]))
-        end
+    # Fifth field
+    if 40 <= l <= 47
+        card.f5 = strip(String(ln[40:end]))
+        card.nfields = 5
+    elseif l >= 48
+        card.f5 = strip(String(ln[40:47]))
+        card.nfields = 5
+    end
 
-        # Fifth field
-        if l < 40
-            card.nfields = 4
-            return card
-        elseif 40 <= l <= 47
-            card.f5 = strip(String(ln[40:end]))
-            card.nfields = 5
-            return card
-        else
-            card.f5 = strip(String(ln[40:47]))
-        end
-
-        # Sixth field
-        if l < 50
-            card.nfields = 5
-            return card
-        elseif 50 <= l <= 61
-            card.f6 = strip(String(ln[50:end]))
-        else
-            card.f6 = strip(String(ln[50:61]))
-        end
-
+    # Sixth field
+    if 50 <= l <= 61
+        card.f6 = strip(String(ln[50:end]))
         card.nfields = 6
+    elseif l >= 62
+        card.f6 = strip(String(ln[50:61]))
+        card.nfields = 6
+    end
+
+    # If first field was empty, shift all fields to the left
+    if length(card.f1) == 0
+        card.f1 = card.f2
+        card.f2 = card.f3
+        card.f3 = card.f4
+        card.f4 = card.f5
+        card.f5 = card.f6
+        card.nfields -= 1
     end
 
     return card
@@ -276,13 +276,9 @@ function read_card!(card::MPSCard{FreeMPS}, ln::String)
         card.iscomment = false
         card.isheader = false
 
-        # Check if first field is empty
-        l >= 3 || error("Short line\n$ln")
-
         # Read fields
         s = split(ln)
-
-        l = length(s)
+        l = length(s)  # Total number of fields
         if l == 0
             # Empty line
             card.iscomment = true
@@ -291,33 +287,31 @@ function read_card!(card::MPSCard{FreeMPS}, ln::String)
             return card
         end
 
-        first_field_empty = (ln[2] == ' ')
-        l_ = l + first_field_empty  # total number of fields, including a (possibly empty) first field
-        l_ <= 6 || error("Too many fields in line.\n$ln")
-        card.nfields = l_
+        l <= 6 || error("Too many fields in line.\n$ln")
+        card.nfields = l
 
-        if l_ >= 1 
-            card.f1 = first_field_empty ? "" : s[1]
+        if l >= 1 
+            card.f1 = s[1]
         end
 
-        if l_ >= 2
-            card.f2 = first_field_empty ? s[1] : s[2]
+        if l >= 2
+            card.f2 = s[2]
         end
 
-        if l_ >= 3
-            card.f3 = first_field_empty ? s[2] : s[3]
+        if l >= 3
+            card.f3 = s[3]
         end
 
-        if l_ >= 4
-            card.f4 = first_field_empty ? s[3] : s[4]
+        if l >= 4
+            card.f4 = s[4]
         end
 
-        if l_ >= 5
-            card.f5 = first_field_empty ? s[4] : s[5]
+        if l >= 5
+            card.f5 = s[5]
         end
 
-        if l_ >= 6
-            card.f6 = first_field_empty ? s[5] : s[6]
+        if l >= 6
+            card.f6 = s[6]
         end
     end
 
@@ -391,17 +385,17 @@ end
 
 function read_columns_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error(
+    card.nfields >= 3 || error(
         "Line $(card.nline) contains only $(card.nfields) fields"
     )
 
     # Ignore markers
-    if card.f3 == "'MARKER'"
+    if card.f2 == "'MARKER'"
         @error "Ignoring marker $(card.f3) at line $(card.nline)"
         return nothing
     end
 
-    varname = card.f2
+    varname = card.f1
     nvar = qps.nvar + 1
     # Get column index
     col = get!(qps.varindices, varname, nvar)
@@ -417,8 +411,8 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         push!(qps.uvar, Inf)
     end
 
-    fun = card.f3
-    val = parse(Float64, card.f4)
+    fun = card.f2
+    val = parse(Float64, card.f3)
 
     row = get(qps.conindices, fun, -2)
     if row == 0
@@ -437,11 +431,11 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         error("Unknown row $fun at line $(card.nline)")
     end
 
-    card.nfields >= 6 || return nothing
+    card.nfields >= 5 || return nothing
 
     # Read second par of the fields
-    fun = card.f5
-    val = parse(Float64, card.f6)
+    fun = card.f4
+    val = parse(Float64, card.f5)
 
     row = get(qps.conindices, fun, -2)
     if row == 0
@@ -465,11 +459,11 @@ end
 
 function read_rhs_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error(
+    card.nfields >= 3 || error(
         "Line $(card.nline) contains only $(card.nfields) fields"
     )
 
-    rhs = card.f2
+    rhs = card.f1
     if qps.rhsname === nothing
         # Record this as the RHS
         qps.rhsname = rhs
@@ -480,8 +474,8 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         return nothing
     end
 
-    fun = card.f3
-    val = parse(Float64, card.f4)
+    fun = card.f2
+    val = parse(Float64, card.f3)
     row = get(qps.conindices, fun, -2)
     if row == 0
         # Objective row
@@ -504,10 +498,10 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         error("Unknown row $fun.")
     end
 
-    card.nfields >= 6 || return nothing
+    card.nfields >= 5 || return nothing
 
-    fun = card.f5
-    val = parse(Float64, card.f6)
+    fun = card.f4
+    val = parse(Float64, card.f5)
     row = get(qps.conindices, fun, -2)
     if row == 0
         # Objective row
@@ -547,11 +541,11 @@ row type       sign of r       h          u
 """
 function read_ranges_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error(
+    card.nfields >= 3 || error(
         "Line $(card.nline) contains only $(card.nfields) fields"
     )
     
-    rng = card.f2
+    rng = card.f1
     if qps.rngname === nothing
         # Record this as the RANGES
         qps.rngname = rng
@@ -562,8 +556,8 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         return nothing
     end
 
-    rowname = card.f3
-    val = parse(Float64, card.f4)
+    rowname = card.f2
+    val = parse(Float64, card.f3)
     row = get(qps.conindices, rowname, -2)
     if row == 0 || row == -1
         # Objective row
@@ -586,10 +580,10 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         error("Unknown row $rowname.")
     end
 
-    card.nfields >= 6 || return nothing
+    card.nfields >= 5 || return nothing
 
-    rowname = card.f5
-    val = parse(Float64, card.f6)
+    rowname = card.f4
+    val = parse(Float64, card.f5)
     row = get(qps.conindices, rowname, -2)
     if row == 0 || row == -1
         # Objective row
@@ -650,7 +644,9 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
         return nothing
     elseif btype == "BV"
         # TODO: error or just record bounds?
-        error("Binary variables are currently not supported")
+        @warn "Recording bound but binary variables currently not supported"
+        qps.lvar[col] = 0
+        qps.uvar[col] = 1
         return nothing
     elseif btype == "SC"
         # TODO: warning?
@@ -683,13 +679,13 @@ end
 
 function read_quadobj_line!(qps::QPSData, card::MPSCard)
     # Sanity check
-    card.nfields >= 4 || error(
+    card.nfields >= 3 || error(
         "Line $(card.nline) contains only $(card.nfields) fields"
     )
 
-    colname = card.f2
-    rowname = card.f3
-    val = parse(Float64, card.f4)
+    colname = card.f1
+    rowname = card.f2
+    val = parse(Float64, card.f3)
 
     col = get(qps.varindices, colname, 0)
     col > 0 || error("Unknown variable $colname")
@@ -741,9 +737,8 @@ function readqps(filename::String; mpsformat::Symbol=:free)
     while !eof(qps)
         line = readline(qps)
         read_card!(card, line)
-        
+
         card.nline += 1
-        # @info "Line $(card.nline)" line card
 
         card.iscomment && continue
 
