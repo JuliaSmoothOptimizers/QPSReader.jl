@@ -1,0 +1,16 @@
+[netliblp]
+git-tree-sha1 = "545f8c5577a056981a21caf3f53bd7b59cf67410"
+lazy = true
+
+    [[netliblp.download]]
+    sha256 = "e5b7d4128a0bde757ac59182228f80a33828ccc62c1764a33de722b096c0dd9a"
+    url = "https://bitbucket.org/optrove/netlib-lp/get/f83996fca937.tar.gz"
+
+[marosmeszaros]
+git-tree-sha1 = "0eff5ae5b345db85386f55f672a19c90f23257b2"
+lazy = true
+
+    [[marosmeszaros.download]]
+    sha256 = "1bdb9df59502c2f24ae23303f70b2edbdf54660c1db88a048c230e4d3ab851c3"
+    url = "https://bitbucket.org/optrove/maros-meszaros/get/9adfb5707b1e.tar.gz"
+
