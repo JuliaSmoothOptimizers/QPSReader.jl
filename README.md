@@ -20,7 +20,7 @@ subject to &nbsp; L ≤ Ax ≤ U and ℓ ≤ x ≤ u,
 
 where:
 * "optimize" means either "minimize" or "maximize"
-* `c₀` ∈ ℝ is a constant term, `c` ∈ ℝⁿ is the linear term, `Q = Qᵀ` is the *n×n* positive semi-definite quadratic term,
+* `c₀` ∈ ℝ is a constant term, `c` ∈ ℝⁿ is the linear term, `Q = Qᵀ` is the *n×n* quadratic term,
 * `A` is the *m×n* constraint matrix, `L`, `U` are constraint lower and upper bounds, respectively
 * `ℓ`, `u` are variable lower and upper bounds, respectively
 
@@ -41,12 +41,12 @@ This package exports the `QPSData` data type and the `readqps()` function.
 Because MPS is a subset of QPS, the `readqps()` function accepts both formats.
 Because the SIF is a superset of QPS, QPS problems implemented as SIF files (such as those from the Maros-Meszaros collection) are also supported.
 
-Both Fixed and Free format are supported (see below for format conventions).
+Both fixed and free format are supported (see below for format conventions).
 To read a problem from a file:
 ```julia
 julia> qps = readqps("Q25FV47.QPS")  # Free MPS is used by default
-julia> qps = readqps("Q25FV47.QPS", mpsformat=:fixed)  # uses Fixed MPS format
-julia> qps = readqps("Q25FV47.QPS", mpsformat=:free)   # uses Free MPS format
+julia> qps = readqps("Q25FV47.QPS", mpsformat=:fixed)  # uses fixed MPS format
+julia> qps = readqps("Q25FV47.QPS", mpsformat=:free)   # uses free MPS format
 ```
 
 By default, a number of messages may be logged while reading.
@@ -117,7 +117,7 @@ The matrix Q is zero when reading an MPS file.
 
 ## Conventions
 
-The supported file format are described here:
+The file formats supported by `QPSReader` are described here:
 * [MPS file format](http://lpsolve.sourceforge.net/5.5/mps-format.htm)
 * [QPS extension](https://doi.org/10.1080/10556789908805768)
 
