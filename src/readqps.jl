@@ -700,6 +700,12 @@ function read_quadobj_line!(qps::QPSData, card::MPSCard)
 end
 
 function readqps(filename::String; mpsformat::Symbol=:free)
+    open(filename, "r") do qps
+        return readqps(qps; mpsformat=mpsformat)
+    end
+end
+
+function readqps(qps::IO; mpsformat::Symbol=:free)
     name_section_read = false
     objsense_section_read = false
     rows_section_read = false
@@ -732,7 +738,6 @@ function readqps(filename::String; mpsformat::Symbol=:free)
         Dict{String, Int}(), Dict{String, Int}(), Int[]
     )
 
-    qps = open(filename, "r")
     seekstart(qps)
     while !eof(qps)
         line = readline(qps)
@@ -808,7 +813,6 @@ function readqps(filename::String; mpsformat::Symbol=:free)
             error("Unexpected section $sec in line\n$line")
         end
     end
-    close(qps)
 
     endata_read || @error("reached end of file before ENDATA section")
 

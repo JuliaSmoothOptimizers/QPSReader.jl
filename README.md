@@ -49,6 +49,8 @@ julia> qps = readqps("Q25FV47.QPS", mpsformat=:fixed)  # uses fixed MPS format
 julia> qps = readqps("Q25FV47.QPS", mpsformat=:free)   # uses free MPS format
 ```
 
+`readqps` also accepts an `IO` object as the first argument.
+
 By default, a number of messages may be logged while reading.
 Log output can be suppressed as follows:
 ```julia
