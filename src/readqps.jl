@@ -700,6 +700,11 @@ function read_quadobj_line!(qps::QPSData, card::MPSCard)
 end
 
 function readqps(filename::String; mpsformat::Symbol=:free)
+    qps = open(filename, "r")
+    return readqps(qps; mpsformat=mpsformat)
+end
+
+function readqps(qps::IO; mpsformat::Symbol=:free)
     name_section_read = false
     objsense_section_read = false
     rows_section_read = false
@@ -732,7 +737,6 @@ function readqps(filename::String; mpsformat::Symbol=:free)
         Dict{String, Int}(), Dict{String, Int}(), Int[]
     )
 
-    qps = open(filename, "r")
     seekstart(qps)
     while !eof(qps)
         line = readline(qps)
