@@ -1,5 +1,3 @@
 Manifest.toml
-netlib/
-maros/
 *.json
 *.md
