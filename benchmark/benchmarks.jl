@@ -1,15 +1,28 @@
+using Logging
+
 using BenchmarkTools
 const BT = BenchmarkTools
 
 using QPSReader
 
-const NETLIB_DIR = joinpath(@__DIR__, "netlib")
-const MAROS_DIR = joinpath(@__DIR__, "maros")
+const NETLIB_DIR = fetch_netlib()
+const MAROS_DIR = fetch_mm()
 
 const SUITE = BT.BenchmarkGroup()
 
 SUITE["netlib"] = BT.BenchmarkGroup()
 SUITE["maros"] = BT.BenchmarkGroup()
+
+"""
+    readqps_silent
+
+Silent wrapper of `readqps` for benchmark use.
+"""
+function readqps_silent(args...; kwargs...)
+    with_logger(Logging.NullLogger()) do
+        readqps(args...; kwargs...)
+    end
+end
 
 """
     add_instances!(suite, dir)
@@ -26,14 +39,26 @@ function add_instances!(suite, dir)
 
     for finst in instances
         fpath = joinpath(dir, finst)
+
+        # All instance files should have .SIF extension
+        finst[end-3:end] == ".SIF" || continue
+
         try
-            readqps(fpath)
+            # First try to read in free MPS format.
+            # If fails, try with fixed MPS format
+            # If fails again, abort
+            try
+                readqps_silent(fpath)
+                suite[finst] = @benchmarkable(readqps_silent($fpath))
+            catch err
+                readqps_silent(fpath, mpsformat=:fixed)
+                suite[finst] = @benchmarkable(readqps_silent($fpath, mpsformat=:fixed))
+            end
         catch err
             # Exclude file from benchmark
             push!(errored_instances, finst)
             continue
         end
-        suite[finst] = @benchmarkable(readqps($fpath))
     end
 
     nerr = length(errored_instances)
