@@ -46,7 +46,7 @@ function add_instances!(suite, dir)
         try
             # First try to read in free MPS format.
             # If fails, try with fixed MPS format
-            # If fails again, abort
+            # If fails again, discard instance
             try
                 readqps_silent(fpath)
                 suite[finst] = @benchmarkable(readqps_silent($fpath))
