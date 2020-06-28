@@ -34,6 +34,9 @@ mutable struct QPSData
     # Recorded objective function has index 0
     # Rim objective rows have index -1
     conindices::Dict{String, Int}
+    # Variable types
+    vartypes::Vector{Int}
+    # Constraint types (senses)
     contypes::Vector{Int}
 end
 
@@ -123,6 +126,14 @@ function row_type(rtype::String)
         error("Unknown row type $rtype")
     end
 end
+
+# Variable types
+const VTYPE_M = -1  # Marked integer
+const VTYPE_C =  0  # Continuous variable
+const VTYPE_B =  1  # Binary variable
+const VTYPE_I =  2  # Integer variable
+const VTYPE_S =  3  # Semi-continuous
+const VTYPE_N =  4  # Semi-integer
 
 """
     read_card!(card::MPSCard{FixedMPS}, ln::String)
@@ -383,17 +394,11 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
     return nothing
 end
 
-function read_columns_line!(qps::QPSData, card::MPSCard)
+function read_columns_line!(qps::QPSData, card::MPSCard; integer_section::Bool=false)
     # Sanity check
     card.nfields >= 3 || error(
         "Line $(card.nline) contains only $(card.nfields) fields"
     )
-
-    # Ignore markers
-    if card.f2 == "'MARKER'"
-        @error "Ignoring marker $(card.f3) at line $(card.nline)"
-        return nothing
-    end
 
     varname = card.f1
     nvar = qps.nvar + 1
@@ -405,8 +410,10 @@ function read_columns_line!(qps::QPSData, card::MPSCard)
         push!(qps.varnames, varname)
         push!(qps.c, 0.0)
 
+        # Record variable type
+        push!(qps.vartypes, (integer_section ? VTYPE_M : VTYPE_C))
+        
         # Populate default variable bounds
-        # TODO: this should be done only once
         push!(qps.lvar, 0.0)
         push!(qps.uvar, Inf)
     end
@@ -643,8 +650,7 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
         qps.uvar[col] = Inf
         return nothing
     elseif btype == "BV"
-        # TODO: error or just record bounds?
-        @warn "Recording bound but binary variables currently not supported"
+        qps.vartypes[col] = VTYPE_B
         qps.lvar[col] = 0
         qps.uvar[col] = 1
         return nothing
@@ -665,12 +671,12 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
         qps.lvar[col] = val
         qps.uvar[col] = val
     elseif btype == "LI"
-        # TODO: warning?
-        @warn "recording bound but integer variables currently not supported"
+        # Integer variable
+        qps.vartypes[col] = VTYPE_I
         qps.lvar[col] = val
     elseif btype == "UI"
-        # TODO: warning?
-        @warn "recording bound but integer variables currently not supported"
+        # Integer variable
+        qps.vartypes[col] = VTYPE_I
         qps.uvar[col] = val
     end
 
@@ -716,6 +722,8 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
     quadobj_section_read = false
     endata_read = false
 
+    integer_section = false
+
     sec = -1
 
     if mpsformat == :fixed
@@ -735,7 +743,7 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
         Float64[], Float64[],
         nothing, nothing, nothing, nothing, nothing,
         String[], String[],
-        Dict{String, Int}(), Dict{String, Int}(), Int[]
+        Dict{String, Int}(), Dict{String, Int}(), Int[], Int[]
     )
 
     seekstart(qps)
@@ -800,7 +808,18 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
         elseif sec == ROWS
             read_rows_line!(qpsdat, card)
         elseif sec == COLUMNS
-            read_columns_line!(qpsdat, card)
+            # Check if card is marker
+            if card.f2 == "'MARKER'" 
+                if card.f3 == "'INTORG'"
+                    integer_section = true
+                elseif card.f3 == "'INTEND'"
+                    integer_section = false
+                else
+                    @error "Ignoring marker $(card.f3) at line $(card.nline)"
+                end
+                continue
+            end
+            read_columns_line!(qpsdat, card; integer_section=integer_section)
         elseif sec == RHS
             read_rhs_line!(qpsdat, card)
         elseif sec == BOUNDS
@@ -815,6 +834,16 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
     end
 
     endata_read || @error("reached end of file before ENDATA section")
+
+    # Finalize variable bounds
+    # All marked integer variables with no explicit bounds
+    # are converted to Integer variables with bounds [0, 1]
+    for (j, vt) in enumerate(qpsdat.vartypes)
+        if vt == VTYPE_M
+            qpsdat.vartypes[j] = VTYPE_I
+            qpsdat.uvar[j] = 1.0
+        end
+    end
 
     return qpsdat
 end
