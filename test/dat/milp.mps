@@ -23,4 +23,5 @@ BOUNDS
  BV  bnd       x7                7.0
  LI  bnd       x8               -8.0
  UI  bnd       x9                9.0
+ UP  bnd      x10               -1.0
 ENDATA

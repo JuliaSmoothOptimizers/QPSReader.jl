@@ -414,8 +414,8 @@ function read_columns_line!(qps::QPSData, card::MPSCard; integer_section::Bool=f
         push!(qps.vartypes, (integer_section ? VTYPE_M : VTYPE_C))
         
         # Populate default variable bounds
-        push!(qps.lvar, 0.0)
-        push!(qps.uvar, Inf)
+        push!(qps.lvar, NaN)
+        push!(qps.uvar, NaN)
     end
 
     fun = card.f2
@@ -838,7 +838,24 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
     # Finalize variable bounds
     # All marked integer variables with no explicit bounds
     # are converted to Integer variables with bounds [0, 1]
-    for (j, vt) in enumerate(qpsdat.vartypes)
+    for (j, (vt, l, u)) in enumerate(zip(qpsdat.vartypes, qpsdat.lvar, qpsdat.uvar))
+        if isnan(l) && isnan(u)
+            # Set default bounds
+            qpsdat.lvar[j] = 0.0
+            qpsdat.uvar[j] = (vt == VTYPE_M) ? 1.0 : Inf
+        elseif isnan(l) && !isnan(u)
+            # Set lower bound to zero, unless upper bound is negative
+            if u < 0
+                qpsdat.lvar[j] = -Inf
+            else
+                qpsdat.lvar[j] = 0.0
+            end
+        elseif !isnan(l) && isnan(u)
+            # Set default upper bound
+            qpsdat.uvar[j] = (vt == VTYPE_M) ? 1.0 : Inf
+        end
+
+        # Set correct variable type
         if vt == VTYPE_M
             qpsdat.vartypes[j] = VTYPE_I
             qpsdat.uvar[j] = 1.0

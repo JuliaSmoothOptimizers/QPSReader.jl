@@ -14,7 +14,7 @@
     @test milp.vartypes[7]  == QPSReader.VTYPE_B  # no marker + BV
     @test milp.vartypes[8]  == QPSReader.VTYPE_I  # no marker + LI
     @test milp.vartypes[9]  == QPSReader.VTYPE_I  # no marker + UI
-    @test milp.vartypes[10] == QPSReader.VTYPE_C  # no marker
+    @test milp.vartypes[10] == QPSReader.VTYPE_C  # no marker + UP of -1
 
     # Test bounds values
     @test (milp.lvar[1],  milp.uvar[1])  == (0.0,  Inf)
@@ -26,7 +26,7 @@
     @test (milp.lvar[7],  milp.uvar[7])  == (0.0,  1.0)
     @test (milp.lvar[8],  milp.uvar[8])  == (-8.0, Inf)
     @test (milp.lvar[9],  milp.uvar[9])  == (0.0,  9.0)
-    @test (milp.lvar[10], milp.uvar[10]) == (0.0,  Inf)
+    @test (milp.lvar[10], milp.uvar[10]) == (-Inf, -1.0)
 
 end
 end
