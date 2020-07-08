@@ -4,7 +4,7 @@
 
 Benchmarks are run on the [Netlib LP collection](http://www.numerical.rl.ac.uk/cute/netlib.html) and [Maros-Meszaros QP collection](http://www.doc.ic.ac.uk/~im/#DATA).
 They consist of 114 LPs and 138 QPs, respectively.
-Both collections are automatically through Julia's artifact system.
+Both collections are automatically downloaded through Julia's artifact system.
 
 ## Running the benchmark
 
