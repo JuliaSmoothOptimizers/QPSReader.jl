@@ -35,7 +35,7 @@ mutable struct QPSData
     # Rim objective rows have index -1
     conindices::Dict{String, Int}
     # Variable types
-    vartypes::Vector{Int}
+    vartypes::Vector{Char}
     # Constraint types (senses)
     contypes::Vector{Int}
 end
@@ -128,12 +128,12 @@ function row_type(rtype::String)
 end
 
 # Variable types
-const VTYPE_M = -1  # Marked integer
-const VTYPE_C =  0  # Continuous variable
-const VTYPE_B =  1  # Binary variable
-const VTYPE_I =  2  # Integer variable
-const VTYPE_S =  3  # Semi-continuous
-const VTYPE_N =  4  # Semi-integer
+const VTYPE_M = 'M'  # Marked integer (for internal use)
+const VTYPE_C = 'C'  # Continuous variable
+const VTYPE_B = 'B'  # Binary variable
+const VTYPE_I = 'I'  # Integer variable
+const VTYPE_S = 'S'  # Semi-continuous
+const VTYPE_N = 'N'  # Semi-integer
 
 """
     read_card!(card::MPSCard{FixedMPS}, ln::String)
@@ -844,6 +844,7 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
             qpsdat.lvar[j] = 0.0
             qpsdat.uvar[j] = (vt == VTYPE_M) ? 1.0 : Inf
         elseif isnan(l) && !isnan(u)
+            # Only an upper bound was specified
             # Set lower bound to zero, unless upper bound is negative
             if u < 0
                 qpsdat.lvar[j] = -Inf
@@ -851,14 +852,14 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
                 qpsdat.lvar[j] = 0.0
             end
         elseif !isnan(l) && isnan(u)
+            # Only a lower bound was specified
             # Set default upper bound
-            qpsdat.uvar[j] = (vt == VTYPE_M) ? 1.0 : Inf
+            qpsdat.uvar[j] = Inf
         end
 
         # Set correct variable type
         if vt == VTYPE_M
             qpsdat.vartypes[j] = VTYPE_I
-            qpsdat.uvar[j] = 1.0
         end
     end
 
