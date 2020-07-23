@@ -37,7 +37,7 @@ mutable struct QPSData
     # Variable types
     vartypes::Vector{Char}
     # Constraint types (senses)
-    contypes::Vector{Int}
+    contypes::Vector{Char}
 end
 
 abstract type MPSFormat end
@@ -108,10 +108,10 @@ function section_header(s::String)
 end
 
 # Row types
-const RTYPE_E =  0  # equal-to
-const RTYPE_L = -1  # less-than
-const RTYPE_G =  1  # greater-than
-const RTYPE_N =  2  # objective
+const RTYPE_E = 'E'  # equal-to
+const RTYPE_L = 'L'  # less-than
+const RTYPE_G = 'G'  # greater-than
+const RTYPE_N = 'N'  # objective
 
 function row_type(rtype::String)
     if rtype == "E"
