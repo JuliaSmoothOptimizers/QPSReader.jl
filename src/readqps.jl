@@ -35,9 +35,9 @@ mutable struct QPSData
     # Rim objective rows have index -1
     conindices::Dict{String, Int}
     # Variable types
-    vartypes::Vector{Char}
+    vartypes::Vector{Symbol}
     # Constraint types (senses)
-    contypes::Vector{Char}
+    contypes::Vector{Symbol}
 end
 
 abstract type MPSFormat end
@@ -108,10 +108,10 @@ function section_header(s::String)
 end
 
 # Row types
-const RTYPE_E = 'E'  # equal-to
-const RTYPE_L = 'L'  # less-than
-const RTYPE_G = 'G'  # greater-than
-const RTYPE_N = 'N'  # objective
+const RTYPE_E = :EqualTo      # equal-to
+const RTYPE_L = :LessThan     # less-than
+const RTYPE_G = :GreaterThan  # greater-than
+const RTYPE_N = :Objective    # objective
 
 function row_type(rtype::String)
     if rtype == "E"
@@ -128,12 +128,12 @@ function row_type(rtype::String)
 end
 
 # Variable types
-const VTYPE_M = 'M'  # Marked integer (for internal use)
-const VTYPE_C = 'C'  # Continuous variable
-const VTYPE_B = 'B'  # Binary variable
-const VTYPE_I = 'I'  # Integer variable
-const VTYPE_S = 'S'  # Semi-continuous
-const VTYPE_N = 'N'  # Semi-integer
+const VTYPE_M = :Marked          # Marked integer (for internal use)
+const VTYPE_C = :Continuous      # Continuous variable
+const VTYPE_B = :Binary          # Binary variable
+const VTYPE_I = :Integer         # Integer variable
+const VTYPE_S = :SemiContinuous  # Semi-continuous
+const VTYPE_N = :SemiInteger     # Semi-integer
 
 """
     read_card!(card::MPSCard{FixedMPS}, ln::String)
