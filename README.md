@@ -107,19 +107,19 @@ mutable struct QPSData
     conindices::Dict{String, Int}
 
     # Variable types
-    #  :Continuous      <--> continuous
-    #  :Integer         <--> integer
-    #  :Binary          <--> binary
-    #  :SemiContinuous  <--> semi-continuous (not supported)
-    #  :SemiInteger     <--> semi-integer (not supported)
-    vartypes::Vector{Symbol}
+    #  `VTYPE_Continuous`      <--> continuous
+    #  `VTYPE_Integer`         <--> integer
+    #  `VTYPE_Binary`          <--> binary
+    #  `VTYPE_SemiContinuous`  <--> semi-continuous (not supported)
+    #  `VTYPE_SemiInteger`     <--> semi-integer (not supported)
+    vartypes::Vector{VariableType}
 
     # Indicates the sense of each row:
-    #  :EqualTo      <--> equality constraint
-    #  :LessThan     <--> less-than-or-equal-to
-    #  :GreaterThan  <--> greater-than-or-equal-to
-    #  :Objective    <--> objective
-    contypes::Vector{Symbol}
+    # `RTYPE_Objective`    <--> objective row (`'N'`)
+    # `RTYPE_EqualTo`      <--> equality constraint (`'E'`)
+    # `RTYPE_LessThan`     <--> less-than constraint (`'L'`)
+    # `RTYPE_GreaterThan`  <--> greater-than constraint (`'G'`)
+    contypes::Vector{RowType}
 end
 ```
 Rows and variables are indexed in the order in which they are read.

@@ -1,24 +1,81 @@
 # http://lpsolve.sourceforge.net/5.5/mps-format.htm
 # https://doi.org/10.1080/10556789908805768
 
+
+"""
+    RowType
+
+An Enum of possible row types.
+
+* `RTYPE_Objective`: objective row (`'N'`)
+* `RTYPE_EqualTo`: equality constraint (`'E'`)
+* `RTYPE_LessThan`: less-than constraint (`'L'`)
+* `RTYPE_GreaterThan`: greter-than constraint (`'G'`)
+"""
+@enum RowType begin
+    RTYPE_Objective
+    RTYPE_EqualTo
+    RTYPE_LessThan
+    RTYPE_GreaterThan
+end
+
+function row_type(rtype::String)
+    if rtype == "E"
+        return RTYPE_EqualTo
+    elseif rtype == "L"
+        return RTYPE_LessThan
+    elseif rtype == "G"
+        return RTYPE_GreaterThan
+    elseif rtype == "N"
+        return RTYPE_Objective
+    else
+        error("Unknown row type $rtype")
+    end
+end
+
+"""
+    VariableType
+
+An Enum of possible variable types.
+
+* `VTYPE_Marked`: marked integer (for internal use)
+* `VTYPE_Continuous`: continuous variable
+* `VTYPE_Binary`: binary variable
+* `VTYPE_Integer`: integer variable
+* `VTYPE_SemiContinuous`: semi-continuous variable
+* `VTYPE_SemiInteger`: semi-integer variable
+"""
+@enum VariableType begin
+    VTYPE_Marked
+    VTYPE_Continuous
+    VTYPE_Binary
+    VTYPE_Integer
+    VTYPE_SemiContinuous
+    VTYPE_SemiInteger
+end
+
 mutable struct QPSData
     nvar::Int                        # number of variables
     ncon::Int                        # number of constraints
     objsense::Symbol                 # :min, :max or :notset
     c0::Float64                      # constant term in objective
     c::Vector{Float64}               # linear term in objective
+
     # Quadratic objective, in COO format
     qrows::Vector{Int}
     qcols::Vector{Int}
     qvals::Vector{Float64}
+
     # Constraint matrix, in COO format
     arows::Vector{Int}
     acols::Vector{Int}
     avals::Vector{Float64}
+
     lcon::Vector{Float64}            # constraints lower bounds
     ucon::Vector{Float64}            # constraints upper bounds
     lvar::Vector{Float64}            # variables lower bounds
     uvar::Vector{Float64}            # variables upper bounds
+
     name::Union{Nothing, String}     # problem name
     objname::Union{Nothing, String}  # objective function name
     rhsname::Union{Nothing, String}  # Name of RHS field
@@ -26,6 +83,7 @@ mutable struct QPSData
     rngname::Union{Nothing, String}  # Name of RANGES field
     varnames::Vector{String}         # variable names, aka column names
     connames::Vector{String}         # constraint names, aka row names
+
     # name => index mapping for variables
     # Variables are indexed from 1 and onwards
     varindices::Dict{String, Int}
@@ -34,10 +92,22 @@ mutable struct QPSData
     # Recorded objective function has index 0
     # Rim objective rows have index -1
     conindices::Dict{String, Int}
+
     # Variable types
-    vartypes::Vector{Symbol}
+    vartypes::Vector{VariableType}
     # Constraint types (senses)
-    contypes::Vector{Symbol}
+    contypes::Vector{RowType}
+
+    # Constructor
+    QPSData() = new(
+        0, 0,
+        :notset, 0.0, Float64[], Int64[], Int64[], Float64[],
+        Int64[], Int64[], Float64[], Float64[], Float64[],
+        Float64[], Float64[],
+        nothing, nothing, nothing, nothing, nothing,
+        String[], String[],
+        Dict{String, Int}(), Dict{String, Int}(), VariableType[], RowType[]
+    )
 end
 
 abstract type MPSFormat end
@@ -106,34 +176,6 @@ function section_header(s::String)
 
     return sec
 end
-
-# Row types
-const RTYPE_E = :EqualTo      # equal-to
-const RTYPE_L = :LessThan     # less-than
-const RTYPE_G = :GreaterThan  # greater-than
-const RTYPE_N = :Objective    # objective
-
-function row_type(rtype::String)
-    if rtype == "E"
-        return RTYPE_E
-    elseif rtype == "L"
-        return RTYPE_L
-    elseif rtype == "G"
-        return RTYPE_G
-    elseif rtype == "N"
-        return RTYPE_N
-    else
-        error("Unknown row type $rtype")
-    end
-end
-
-# Variable types
-const VTYPE_M = :Marked          # Marked integer (for internal use)
-const VTYPE_C = :Continuous      # Continuous variable
-const VTYPE_B = :Binary          # Binary variable
-const VTYPE_I = :Integer         # Integer variable
-const VTYPE_S = :SemiContinuous  # Semi-continuous
-const VTYPE_N = :SemiInteger     # Semi-integer
 
 """
     read_card!(card::MPSCard{FixedMPS}, ln::String)
@@ -352,7 +394,7 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
     rtype = row_type(card.f1)
     rowname = card.f2
 
-    if rtype == RTYPE_N
+    if rtype == RTYPE_Objective
         # Objective row
         if qps.objname === nothing
             # Record objective
@@ -380,13 +422,13 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
 
     # Populate default values for right-hand sides
     # TODO: it would be more efficient to allocate memory only once
-    if rtype == RTYPE_E
+    if rtype == RTYPE_EqualTo
         push!(qps.lcon, 0.0)
         push!(qps.ucon, 0.0)
-    elseif rtype == RTYPE_G
+    elseif rtype == RTYPE_GreaterThan
         push!(qps.lcon, 0.0)
         push!(qps.ucon, Inf)
-    elseif rtype == RTYPE_L
+    elseif rtype == RTYPE_LessThan
         push!(qps.lcon, -Inf)
         push!(qps.ucon, 0.0)
     end
@@ -411,7 +453,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard; integer_section::Bool=f
         push!(qps.c, 0.0)
 
         # Record variable type
-        push!(qps.vartypes, (integer_section ? VTYPE_M : VTYPE_C))
+        push!(qps.vartypes, (integer_section ? VTYPE_Marked : VTYPE_Continuous))
         
         # Populate default variable bounds
         push!(qps.lvar, NaN)
@@ -492,12 +534,12 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
     elseif row > 0
         rtype = qps.contypes[row]
-        if rtype == RTYPE_E
+        if rtype == RTYPE_EqualTo
             qps.lcon[row] = val
             qps.ucon[row] = val
-        elseif rtype == RTYPE_L
+        elseif rtype == RTYPE_LessThan
             qps.ucon[row] = val
-        elseif rtype == RTYPE_G
+        elseif rtype == RTYPE_GreaterThan
             qps.lcon[row] = val
         end
     else
@@ -518,12 +560,12 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
         @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
     elseif row > 0
         rtype = qps.contypes[row]
-        if rtype == RTYPE_E
+        if rtype == RTYPE_EqualTo
             qps.lcon[row] = val
             qps.ucon[row] = val
-        elseif rtype == RTYPE_L
+        elseif rtype == RTYPE_LessThan
             qps.ucon[row] = val
-        elseif rtype == RTYPE_G
+        elseif rtype == RTYPE_GreaterThan
             qps.lcon[row] = val
         end
     else
@@ -571,15 +613,15 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         error("Encountered objective row $rowname in RANGES section")
     elseif row > 0
         rtype = qps.contypes[row]
-        if rtype == RTYPE_E
+        if rtype == RTYPE_EqualTo
             if val >= 0.0
                 qps.ucon[row] += val
             else
                 qps.lcon[row] += val
             end
-        elseif rtype == RTYPE_L
+        elseif rtype == RTYPE_LessThan
             qps.lcon[row] = qps.ucon[row] - abs(val)
-        elseif rtype == RTYPE_G
+        elseif rtype == RTYPE_GreaterThan
             qps.ucon[row] = qps.lcon[row] + abs(val)
         end
     else
@@ -597,15 +639,15 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
         error("Encountered objective row $rowname in RANGES section")
     elseif row > 0
         rtype = qps.contypes[row]
-        if rtype == RTYPE_E
+        if rtype == RTYPE_EqualTo
             if val >= 0.0
                 qps.ucon[row] += val
             else
                 qps.lcon[row] += val
             end
-        elseif rtype == RTYPE_L
+        elseif rtype == RTYPE_LessThan
             qps.lcon[row] = qps.ucon[row] - abs(val)
-        elseif rtype == RTYPE_G
+        elseif rtype == RTYPE_GreaterThan
             qps.ucon[row] = qps.lcon[row] + abs(val)
         end
     else
@@ -650,7 +692,7 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
         qps.uvar[col] = Inf
         return nothing
     elseif btype == "BV"
-        qps.vartypes[col] = VTYPE_B
+        qps.vartypes[col] = VTYPE_Binary
         qps.lvar[col] = 0
         qps.uvar[col] = 1
         return nothing
@@ -672,11 +714,11 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
         qps.uvar[col] = val
     elseif btype == "LI"
         # Integer variable
-        qps.vartypes[col] = VTYPE_I
+        qps.vartypes[col] = VTYPE_Integer
         qps.lvar[col] = val
     elseif btype == "UI"
         # Integer variable
-        qps.vartypes[col] = VTYPE_I
+        qps.vartypes[col] = VTYPE_Integer
         qps.uvar[col] = val
     end
 
@@ -736,15 +778,7 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
 
     card = MPSCard{Tf}(0, false, false, 0, "", "", "", "", "", "")
 
-    qpsdat = QPSData(
-        0, 0,
-        :notset, 0.0, Float64[], Int64[], Int64[], Float64[],
-        Int64[], Int64[], Float64[], Float64[], Float64[],
-        Float64[], Float64[],
-        nothing, nothing, nothing, nothing, nothing,
-        String[], String[],
-        Dict{String, Int}(), Dict{String, Int}(), Int[], Int[]
-    )
+    qpsdat = QPSData()
 
     seekstart(qps)
     while !eof(qps)
@@ -842,7 +876,7 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
         if isnan(l) && isnan(u)
             # Set default bounds
             qpsdat.lvar[j] = 0.0
-            qpsdat.uvar[j] = (vt == VTYPE_M) ? 1.0 : Inf
+            qpsdat.uvar[j] = (vt == VTYPE_Marked) ? 1.0 : Inf
         elseif isnan(l) && !isnan(u)
             # Only an upper bound was specified
             # Set lower bound to zero, unless upper bound is negative
@@ -858,8 +892,8 @@ function readqps(qps::IO; mpsformat::Symbol=:free)
         end
 
         # Set correct variable type
-        if vt == VTYPE_M
-            qpsdat.vartypes[j] = VTYPE_I
+        if vt == VTYPE_Marked
+            qpsdat.vartypes[j] = VTYPE_Integer
         end
     end
 
