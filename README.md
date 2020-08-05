@@ -16,6 +16,7 @@ The problems represented by the QPS format have the form
 optimize &nbsp; c₀ + cᵀ x + ½ xᵀ Q x
 &nbsp;&nbsp;
 subject to &nbsp; L ≤ Ax ≤ U and ℓ ≤ x ≤ u,
+
 </p>
 
 where:
@@ -24,8 +25,7 @@ where:
 * `A` is the *m×n* constraint matrix, `L`, `U` are constraint lower and upper bounds, respectively
 * `ℓ`, `u` are variable lower and upper bounds, respectively
 
-Only continuous problems are supported at this time.
-Integer and semi-continuous markers will be ignored.
+Mixed-integer problems are supported, but semi-continuous and semi-integer variables are not.
 
 ## Quick start
 
@@ -106,12 +106,20 @@ mutable struct QPSData
     # Rim objective rows have index -1
     conindices::Dict{String, Int}
 
+    # Variable types
+    #  `VTYPE_Continuous`      <--> continuous
+    #  `VTYPE_Integer`         <--> integer
+    #  `VTYPE_Binary`          <--> binary
+    #  `VTYPE_SemiContinuous`  <--> semi-continuous (not supported)
+    #  `VTYPE_SemiInteger`     <--> semi-integer (not supported)
+    vartypes::Vector{VariableType}
+
     # Indicates the sense of each row:
-    #   0  <--> E
-    #  -1  <--> L
-    #   1  <--> G
-    #   2  <--> N
-    contypes::Vector{Int}
+    # `RTYPE_Objective`    <--> objective row (`'N'`)
+    # `RTYPE_EqualTo`      <--> equality constraint (`'E'`)
+    # `RTYPE_LessThan`     <--> less-than constraint (`'L'`)
+    # `RTYPE_GreaterThan`  <--> greater-than constraint (`'G'`)
+    contypes::Vector{RowType}
 end
 ```
 Rows and variables are indexed in the order in which they are read.
@@ -125,6 +133,8 @@ The file formats supported by `QPSReader` are described here:
 
 The following conventions are enforced:
 
+### Rim data
+
 * Multiple objective rows
     * The first `N`-type row encountered in the `ROWS` section is recorded as the objective function, and its name is stored in `objname`.
     * If an additional `N`-type row is present, a `warning`-level log is displayed. Subsequent `N`-type rows are ignored.
@@ -136,13 +146,43 @@ The following conventions are enforced:
     A `warning`-level log is displayed at the first such occurence.
     * In addition, any line or individual coefficient that is ignored triggers an `error`-level log.
 
+### Variable bounds
+
+* Default bounds for variables are `[0, Inf)`, to exception of integer variables (see below).
+* If multiple bounds are specified for a given variable, only the most recent bound is recorded.
+
+### Integer variables
+
+There are two ways of declaring integer variables:
+
+* Through markers in the `COLUMNS` section.
+* By specifying `BV`, `LI` or `UI` bounds in the `BOUNDS` section
+* The convention for integer variable bounds in as follows:
+    | Marker? | `BOUNDS` fields | Type | Bounds reported |
+    |:--:|:--:|:--:|:--:|
+    | Yes | - | Integer | `[0, 1]` 
+    | Yes | `BV` | Binary | `[0, 1]` 
+    | Yes | (`LI`, `l`) | Integer | `[l, Inf]` 
+    | Yes | (`UI`, `u`) with `u≥0` | Integer | `[0, u]`
+    | Yes | (`UI`, `u`) with `u<0` | Integer | `[-Inf, u]`
+    | Yes | (`LI`, `l`) + (`UI`, `u`) | Integer | `[l, u]` 
+    | No | `BV` | Binary | `[0, 1]` 
+    | No | (`LI`, `l`) | Integer | `[l, Inf]` 
+    | No | (`UI`, `u`) with `u≥0` | Integer | `[0, u]`
+    | No | (`UI`, `u`) with `u<0` | Integer | `[-Inf, u]`
+    | No | (`LI`, `l`) + (`UI`, `u`) | Integer | `[l, u]` 
+
+    The `LI`/`UI` can be replaced by `LO`/`UP` in the table above, with no impact on bounds. Only the integrality of variables are affected.
+    For continuous variables, follow the second half of the table, and replace `LI`/`UI` by `LO`/`UP`.
+
+### Errors
+
 * A row (resp. column) name that was not declared in the `ROWS` (resp. `COLUMNS`) section, appears elsewhere in the file.
 The only case where an error is not thrown is if said un-declared row or column appears in a rim line that is skipped.
 * An `N`-type row appears in the `RANGES` section
 
 
 ## Problem Collections
-
 
 * The Netlib LPs: [original Netlib site](http://www.netlib.org/lp) | [in SIF format](http://www.numerical.rl.ac.uk/cute/netlib.html) | [as tar files](http://users.clas.ufl.edu/hager/coap/format.html) (incl. preprocessed versions)
 * the Kennington LPs: [original Netlib site](http://www.netlib.org/lp/data/kennington)
