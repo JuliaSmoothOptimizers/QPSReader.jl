@@ -101,8 +101,8 @@ mutable struct QPSData
     # Constructor
     QPSData() = new(
         0, 0,
-        :notset, 0.0, Float64[], Int64[], Int64[], Float64[],
-        Int64[], Int64[], Float64[], Float64[], Float64[],
+        :notset, 0.0, Float64[], Int[], Int[], Float64[],
+        Int[], Int[], Float64[], Float64[], Float64[],
         Float64[], Float64[],
         nothing, nothing, nothing, nothing, nothing,
         String[], String[],
