@@ -2,13 +2,15 @@
 
 A package to read linear optimization problems in MPS format and quadratic optimization problems in QPS format.
 
- **Linux and macOS** | **Windows** | **FreeBSD** |
-|:----------------:|:------------:|:-----------------:|
-[![Build Status](https://travis-ci.org/JuliaSmoothOptimizers/QPSReader.jl.svg?branch=master)](https://travis-ci.org/JuliaSmoothOptimizers/QPSReader.jl) | [![Build status](https://ci.appveyor.com/api/projects/status/mntnshay4xud7t8t?svg=true)](https://ci.appveyor.com/project/dpo/qpsreader-jl) | [![Build Status](https://api.cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl.svg)](https://cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl) |
+## How to Cite
 
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.3996203-blue.svg)](https://doi.org/10.5281/zenodo.3996203)
 
-[![Coverage Status](https://coveralls.io/repos/JuliaSmoothOptimizers/QPSReader.jl/badge.svg?branch=master)](https://coveralls.io/r/JuliaSmoothOptimizers/QPSReader.jl?branch=master) | [![codecov.io](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=master)](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
-|:--:|:--:|
+If you use QPSReader.jl in your work, please cite using the format given in [CITATION.bib](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/blob/master/CITATION.bib).
+
+ **Linux, macOS, Windows** | **FreeBSD** | **Coverage** |
+|:------------------------:|:-----------:|:------------:|
+![CI](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/workflows/CI/badge.svg?branch=master) | [![Build Status](https://api.cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl.svg)](https://cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl) | [![codecov.io](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=master)](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
 
 The problems represented by the QPS format have the form
 
@@ -83,7 +85,7 @@ mutable struct QPSData
     arows::Vector{Int}
     acols::Vector{Int}
     avals::Vector{Float64}
-    
+
     lcon::Vector{Float64}            # constraints lower bounds
     ucon::Vector{Float64}            # constraints upper bounds
     lvar::Vector{Float64}            # variables lower bounds
@@ -160,17 +162,17 @@ There are two ways of declaring integer variables:
 * The convention for integer variable bounds in as follows:
     | Marker? | `BOUNDS` fields | Type | Bounds reported |
     |:--:|:--:|:--:|:--:|
-    | Yes | - | Integer | `[0, 1]` 
-    | Yes | `BV` | Binary | `[0, 1]` 
-    | Yes | (`LI`, `l`) | Integer | `[l, Inf]` 
+    | Yes | - | Integer | `[0, 1]`
+    | Yes | `BV` | Binary | `[0, 1]`
+    | Yes | (`LI`, `l`) | Integer | `[l, Inf]`
     | Yes | (`UI`, `u`) with `u≥0` | Integer | `[0, u]`
     | Yes | (`UI`, `u`) with `u<0` | Integer | `[-Inf, u]`
-    | Yes | (`LI`, `l`) + (`UI`, `u`) | Integer | `[l, u]` 
-    | No | `BV` | Binary | `[0, 1]` 
-    | No | (`LI`, `l`) | Integer | `[l, Inf]` 
+    | Yes | (`LI`, `l`) + (`UI`, `u`) | Integer | `[l, u]`
+    | No | `BV` | Binary | `[0, 1]`
+    | No | (`LI`, `l`) | Integer | `[l, Inf]`
     | No | (`UI`, `u`) with `u≥0` | Integer | `[0, u]`
     | No | (`UI`, `u`) with `u<0` | Integer | `[-Inf, u]`
-    | No | (`LI`, `l`) + (`UI`, `u`) | Integer | `[l, u]` 
+    | No | (`LI`, `l`) + (`UI`, `u`) | Integer | `[l, u]`
 
     The `LI`/`UI` can be replaced by `LO`/`UP` in the table above, with no impact on bounds. Only the integrality of variables are affected.
     For continuous variables, follow the second half of the table, and replace `LI`/`UI` by `LO`/`UP`.
