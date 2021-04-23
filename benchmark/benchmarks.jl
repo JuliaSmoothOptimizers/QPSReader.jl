@@ -19,9 +19,9 @@ SUITE["maros"] = BT.BenchmarkGroup()
 Silent wrapper of `readqps` for benchmark use.
 """
 function readqps_silent(args...; kwargs...)
-    with_logger(Logging.NullLogger()) do
-        readqps(args...; kwargs...)
-    end
+  with_logger(Logging.NullLogger()) do
+    readqps(args...; kwargs...)
+  end
 end
 
 """
@@ -34,39 +34,39 @@ Each file is read first, and is excluded from the benchmark if an error is
     warning message before exiting the function, when applicable.
 """
 function add_instances!(suite, dir)
-    instances = readdir(dir)
-    errored_instances = String[]
+  instances = readdir(dir)
+  errored_instances = String[]
 
-    for finst in instances
-        fpath = joinpath(dir, finst)
+  for finst in instances
+    fpath = joinpath(dir, finst)
 
-        # All instance files should have .SIF extension
-        finst[end-3:end] == ".SIF" || continue
+    # All instance files should have .SIF extension
+    finst[(end - 3):end] == ".SIF" || continue
 
-        try
-            # First try to read in free MPS format.
-            # If fails, try with fixed MPS format
-            # If fails again, discard instance
-            try
-                readqps_silent(fpath)
-                suite[finst] = @benchmarkable(readqps_silent($fpath))
-            catch err
-                readqps_silent(fpath, mpsformat=:fixed)
-                suite[finst] = @benchmarkable(readqps_silent($fpath, mpsformat=:fixed))
-            end
-        catch err
-            # Exclude file from benchmark
-            push!(errored_instances, finst)
-            continue
-        end
+    try
+      # First try to read in free MPS format.
+      # If fails, try with fixed MPS format
+      # If fails again, discard instance
+      try
+        readqps_silent(fpath)
+        suite[finst] = @benchmarkable(readqps_silent($fpath))
+      catch err
+        readqps_silent(fpath, mpsformat = :fixed)
+        suite[finst] = @benchmarkable(readqps_silent($fpath, mpsformat = :fixed))
+      end
+    catch err
+      # Exclude file from benchmark
+      push!(errored_instances, finst)
+      continue
     end
+  end
 
-    nerr = length(errored_instances)
-    if nerr > 0
-        @warn "Reader errored on the following $nerr files:\n$(errored_instances)"
-    end
+  nerr = length(errored_instances)
+  if nerr > 0
+    @warn "Reader errored on the following $nerr files:\n$(errored_instances)"
+  end
 
-    return suite
+  return suite
 end
 
 add_instances!(SUITE["netlib"], NETLIB_DIR)
