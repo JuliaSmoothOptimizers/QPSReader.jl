@@ -158,7 +158,7 @@ end
 # By convention, all sections should correspond to non-negative integers
 const ENDATA = 0
 const NAME = 1
-const OBJ_SENSE = 2
+const OBJSENSE = 2
 const ROWS = 3
 const COLUMNS = 4
 const RHS = 5
@@ -170,7 +170,7 @@ const OBJECT_BOUND = 10
 const SECTION_HEADERS = Dict{String, Int}(
   "ENDATA" => ENDATA,
   "NAME" => NAME,
-  "OBJ_SENSE" => OBJ_SENSE,  # Free MPS only
+  "OBJSENSE" => OBJSENSE,  # Free MPS only
   "ROWS" => ROWS,
   "COLUMNS" => COLUMNS,
   "RHS" => RHS,
@@ -801,7 +801,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
         qpsdat.name = card.f2
         name_section_read = true
         @info "Using '$(qpsdat.name)' as NAME (l. $(card.nline))"
-      elseif sec == OBJ_SENSE
+      elseif sec == OBJSENSE
         objsense_section_read && error("more than one OBJSENSE section specified")
         objsense_section_read = true
       elseif sec == ROWS
@@ -841,7 +841,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
     end
 
     # Line is not a comment/empty line, nor a section header
-    if sec == OBJ_SENSE
+    if sec == OBJSENSE
       # Parse objective sense
       read_objsense_line!(qpsdat, card)
     elseif sec == ROWS
