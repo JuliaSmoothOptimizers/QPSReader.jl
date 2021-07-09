@@ -3,15 +3,15 @@
 A package to read linear optimization problems in MPS format and quadratic optimization problems in QPS format.
 
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.3996203-blue.svg)](https://doi.org/10.5281/zenodo.3996203)
-![CI](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/workflows/CI/badge.svg?branch=master)
+![CI](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/workflows/CI/badge.svg?branch=main)
 [![Build Status](https://api.cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl.svg)](https://cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl)
-[![codecov.io](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=master)](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=master)
+[![codecov.io](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=main)](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=main)
 [![Documentation/stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaSmoothOptimizers.github.io/QPSReader.jl/stable)
 [![Documentation/dev](https://img.shields.io/badge/docs-latest-blue.svg)](https://JuliaSmoothOptimizers.github.io/QPSReader.jl/dev)
 
 ## How to Cite
 
-If you use QPSReader.jl in your work, please cite using the format given in [CITATION.bib](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/blob/master/CITATION.bib).
+If you use QPSReader.jl in your work, please cite using the format given in [CITATION.bib](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/blob/main/CITATION.bib).
 
 The problems represented by the QPS format have the form
 
