@@ -23,10 +23,10 @@ export_markdown("results.md", res)
 
 ## Comparing two commits
 
-To compare against the `master` branch
+To compare against the `main` branch
 ```julia
 using PkgBenchmark
 
-judgement = judge("..", "master")
+judgement = judge("..", "main")
 export_markdown("judgement.md", judgement)
 ```
