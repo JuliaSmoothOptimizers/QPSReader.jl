@@ -177,6 +177,7 @@ const SECTION_HEADERS = Dict{String, Int}(
   "BOUNDS" => BOUNDS,
   "RANGES" => RANGES,
   "QUADOBJ" => QUADOBJ,
+  "QMATRIX" => QUADOBJ,
   "OBJECT BOUND" => OBJECT_BOUND,  # SIF only
 )
 
