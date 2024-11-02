@@ -1,0 +1,8 @@
+PackageName: "QPSReader"
+PackageOwner: "JuliaSmoothOptimizers"
+PackageUUID: "10f199a5-22af-520b-b891-7ce84a7b1bd0"
+_src_path: "https://github.com/JuliaSmoothOptimizers/JSOBestieTemplate.jl"
+_commit: "v0.13.0"
+AddBreakage: true
+AddBenchmark: false
+AddBenchmarkCI: true
