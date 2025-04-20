@@ -202,7 +202,7 @@ Read the fields in `ln` into `card`.
 """
 function read_card!(card::MPSCard{FixedMPS}, ln::String)
   l = length(ln)
-  if l == 0 || ln[1] == '*' || ln[1] == '&'
+  if l == 0 || ln[1] == '*' || ln[1] == '&' || ln[1] == '$'
     # This line is an empty line, or it is a comment
     card.iscomment = true
     card.isheader = false
@@ -314,7 +314,7 @@ Read the fields in `ln` into `card`.
 """
 function read_card!(card::MPSCard{FreeMPS}, ln::String)
   l = length(ln)
-  if l == 0 || ln[1] == '*' || ln[1] == '&'
+  if l == 0 || ln[1] == '*' || ln[1] == '&' || ln[1] == '$'
     # This line is an empty line, or it is a comment
     card.iscomment = true
     card.isheader = false
