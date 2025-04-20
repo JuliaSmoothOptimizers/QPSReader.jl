@@ -850,12 +850,12 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
     elseif sec == COLUMNS
       # Check if card is marker
       if card.f2 == "'MARKER'"
-        if card.f3 == "'INTORG'"
+        if card.f3 == "'INTORG'" || card.f4 == "'INTORG'"
           integer_section = true
-        elseif card.f3 == "'INTEND'"
+        elseif card.f3 == "'INTEND'" || card.f4 == "'INTEND'"
           integer_section = false
         else
-          @error "Ignoring marker $(card.f3) at line $(card.nline)"
+          @error "Ignoring marker $(card.f3) (or $(card.f4)) at line $(card.nline)"
         end
         continue
       end
