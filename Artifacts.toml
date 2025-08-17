@@ -13,4 +13,3 @@ lazy = true
     [[marosmeszaros.download]]
     sha256 = "1bdb9df59502c2f24ae23303f70b2edbdf54660c1db88a048c230e4d3ab851c3"
     url = "https://bitbucket.org/optrove/maros-meszaros/get/9adfb5707b1e.tar.gz"
-
