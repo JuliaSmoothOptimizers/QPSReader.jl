@@ -403,7 +403,7 @@ end
 """
     read_rows_line
 """
-function read_rows_line!(qps::QPSData, card::MPSCard)
+function read_rows_line!(qps::QPSData, card::MPSCard; verbose::Bool = true)
   # Sanity check
   card.nfields >= 2 || error("Line $(card.nline) contains only $(card.nfields) fields")
 
@@ -416,10 +416,10 @@ function read_rows_line!(qps::QPSData, card::MPSCard)
       # Record objective
       qps.objname = rowname
       qps.conindices[rowname] = 0
-      @info "Using '$rowname' as objective (l. $(card.nline))"
+      verbose && @info "Using '$rowname' as objective (l. $(card.nline))"
     else
       # Record name but ignore input
-      @warn "Detected rim objective row $rowname at line $(card.nline)"
+      verbose && @warn "Detected rim objective row $rowname at line $(card.nline)"
       qps.conindices[rowname] = -1
     end
 
@@ -483,7 +483,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard; integer_section::Bool =
     qps.c[col] = val
   elseif row == -1
     # Rim objective, ignore this input
-    @error "Ignoring coefficient ($fun, $varname) with value $val at line $(card.nline)"
+    verbose && @error "Ignoring coefficient ($fun, $varname) with value $val at line $(card.nline)"
   elseif row > 0
     # Record coefficient
     push!(qps.arows, row)
@@ -506,7 +506,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard; integer_section::Bool =
     qps.c[col] = val
   elseif row == -1
     # Rim objective, ignore this input
-    @error "Ignoring coefficient ($fun, $varname) with value $val at line $(card.nline)"
+    verbose && @error "Ignoring coefficient ($fun, $varname) with value $val at line $(card.nline)"
   elseif row > 0
     # Record coefficient
     push!(qps.arows, row)
@@ -520,7 +520,7 @@ function read_columns_line!(qps::QPSData, card::MPSCard; integer_section::Bool =
   return nothing
 end
 
-function read_rhs_line!(qps::QPSData, card::MPSCard)
+function read_rhs_line!(qps::QPSData, card::MPSCard; verbose::Bool = true)
   # Sanity check
   card.nfields >= 3 || error("Line $(card.nline) contains only $(card.nfields) fields")
 
@@ -528,10 +528,10 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
   if qps.rhsname === nothing
     # Record this as the RHS
     qps.rhsname = rhs
-    @info "Using '$rhs' as RHS (l. $(card.nline))"
+    verbose && @info "Using '$rhs' as RHS (l. $(card.nline))"
   elseif qps.rhsname != rhs
     # Rim RHS, ignore this line
-    @error "Skipping line $(card.nline) with rim RHS $rhs"
+    verbose && @error "Skipping line $(card.nline) with rim RHS $rhs"
     return nothing
   end
 
@@ -543,7 +543,7 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
     qps.c0 = -val
   elseif row == -1
     # Rim objective, ignore this input
-    @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
+    verbose && @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
   elseif row > 0
     rtype = qps.contypes[row]
     if rtype == RTYPE_EqualTo
@@ -569,7 +569,7 @@ function read_rhs_line!(qps::QPSData, card::MPSCard)
     qps.c0 = -val
   elseif row == -1
     # Rim objective, ignore this input
-    @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
+    verbose && @error "Ignoring RHS for rim objective $fun at line $(card.nline)"
   elseif row > 0
     rtype = qps.contypes[row]
     if rtype == RTYPE_EqualTo
@@ -600,7 +600,7 @@ row type       sign of r       h          u
     E              -          b - |r|      b
 ```
 """
-function read_ranges_line!(qps::QPSData, card::MPSCard)
+function read_ranges_line!(qps::QPSData, card::MPSCard; verbose::Bool = true)
   # Sanity check
   card.nfields >= 3 || error("Line $(card.nline) contains only $(card.nfields) fields")
 
@@ -608,10 +608,10 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
   if qps.rngname === nothing
     # Record this as the RANGES
     qps.rngname = rng
-    @info "Using '$rng' as RANGES (l. $(card.nline))"
+    verbose && @info "Using '$rng' as RANGES (l. $(card.nline))"
   elseif qps.rngname != rng
     # Rim RANGES, ignore this line
-    @error "Skipping line $(card.nline) with rim RANGES $rng"
+    verbose && @error "Skipping line $(card.nline) with rim RANGES $rng"
     return nothing
   end
 
@@ -668,7 +668,7 @@ function read_ranges_line!(qps::QPSData, card::MPSCard)
   return nothing
 end
 
-function read_bounds_line!(qps::QPSData, card::MPSCard)
+function read_bounds_line!(qps::QPSData, card::MPSCard; verbose::Bool = true)
   # Sanity check
   card.nfields >= 3 || error("Line $(card.nline) contains only $(card.nfields) fields")
 
@@ -676,10 +676,10 @@ function read_bounds_line!(qps::QPSData, card::MPSCard)
   if qps.bndname === nothing
     # Record this as the BOUNDS
     qps.bndname = bnd
-    @info "Using '$bnd' as BOUNDS (l. $(card.nline))"
+    verbose && @info "Using '$bnd' as BOUNDS (l. $(card.nline))"
   elseif qps.bndname != bnd
     # Rim BOUNDS, ignore this line
-    @error "Skipping line $(card.nline) with rim bound $bnd"
+    verbose && @error "Skipping line $(card.nline) with rim bound $bnd"
     return nothing
   end
 
@@ -753,13 +753,13 @@ function read_quadobj_line!(qps::QPSData, card::MPSCard)
   return nothing
 end
 
-function readqps(filename::String; mpsformat::Symbol = :free)
+function readqps(filename::String; mpsformat::Symbol = :free, verbose::Bool = true)
   open(filename, "r") do qps
-    return readqps(qps; mpsformat = mpsformat)
+    return readqps(qps; mpsformat = mpsformat, verbose = verbose)
   end
 end
 
-function readqps(qps::IO; mpsformat::Symbol = :free)
+function readqps(qps::IO; mpsformat::Symbol = :free, verbose::Bool = true)
   name_section_read = false
   objsense_section_read = false
   rows_section_read = false
@@ -801,7 +801,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
         name_section_read && error("more than one NAME section specified")
         qpsdat.name = card.f2
         name_section_read = true
-        @info "Using '$(qpsdat.name)' as NAME (l. $(card.nline))"
+        verbose && @info "Using '$(qpsdat.name)' as NAME (l. $(card.nline))"
       elseif sec == OBJSENSE
         objsense_section_read && error("more than one OBJSENSE section specified")
         objsense_section_read = true
@@ -846,7 +846,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
       # Parse objective sense
       read_objsense_line!(qpsdat, card)
     elseif sec == ROWS
-      read_rows_line!(qpsdat, card)
+      read_rows_line!(qpsdat, card; verbose)
     elseif sec == COLUMNS
       # Check if card is marker
       if card.f2 == "'MARKER'"
@@ -855,17 +855,17 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
         elseif card.f3 == "'INTEND'"
           integer_section = false
         else
-          @error "Ignoring marker $(card.f3) at line $(card.nline)"
+          verbose && @error "Ignoring marker $(card.f3) at line $(card.nline)"
         end
         continue
       end
-      read_columns_line!(qpsdat, card; integer_section = integer_section)
+      read_columns_line!(qpsdat, card; integer_section = integer_section, verbose)
     elseif sec == RHS
-      read_rhs_line!(qpsdat, card)
+      read_rhs_line!(qpsdat, card; verbose)
     elseif sec == BOUNDS
-      read_bounds_line!(qpsdat, card)
+      read_bounds_line!(qpsdat, card; verbose)
     elseif sec == RANGES
-      read_ranges_line!(qpsdat, card)
+      read_ranges_line!(qpsdat, card; verbose)
     elseif sec == QUADOBJ
       read_quadobj_line!(qpsdat, card)
     else
@@ -873,7 +873,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
     end
   end
 
-  endata_read || @error("reached end of file before ENDATA section")
+  endata_read || (verbose && @error("reached end of file before ENDATA section"))
 
   # Finalize variable bounds
   # All marked integer variables with no explicit bounds

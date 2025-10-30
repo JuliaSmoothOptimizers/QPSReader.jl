@@ -49,7 +49,7 @@ To read a problem from a file:
 ```julia
 julia> qps = readqps("Q25FV47.QPS")  # Free MPS is used by default
 julia> qps = readqps("Q25FV47.QPS", mpsformat=:fixed)  # uses fixed MPS format
-julia> qps = readqps("Q25FV47.QPS", mpsformat=:free)   # uses free MPS format
+julia> qps = readqps("Q25FV47.QPS", mpsformat=:free, verbose=false)   # uses free MPS format, silences logs and warnings
 ```
 
 `readqps` also accepts an `IO` object as the first argument.
