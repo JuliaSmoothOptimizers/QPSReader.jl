@@ -13,20 +13,22 @@ A package to read linear optimization problems in MPS format and quadratic optim
 
 If you use QPSReader.jl in your work, please cite using the format given in [CITATION.bib](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/blob/main/CITATION.bib).
 
-The problems represented by the QPS format have the form
+The problems represented by the `.QPS`/`.mps` format have the form
 
 <p align="center">
-optimize &nbsp; c₀ + cᵀ x + ½ xᵀ Q x
+optimize &nbsp; c₀ + cᵀ x + ½ xᵀ Q₀ x
 &nbsp;&nbsp;
-subject to &nbsp; L ≤ Ax ≤ U and ℓ ≤ x ≤ u,
-
+subject to &nbsp; Lᵢ ≤ aᵢᵀ x + xᵀ Qᵢ x ≤ Uᵢ &nbsp; and &nbsp; ℓ ≤ x ≤ u,
 </p>
 
 where:
 * "optimize" means either "minimize" or "maximize"
-* `c₀` ∈ ℝ is a constant term, `c` ∈ ℝⁿ is the linear term, `Q = Qᵀ` is the *n×n* quadratic term,
-* `A` is the *m×n* constraint matrix, `L`, `U` are constraint lower and upper bounds, respectively
-* `ℓ`, `u` are variable lower and upper bounds, respectively
+* `c₀` ∈ ℝ is a constant term, `c` ∈ ℝⁿ is the linear term, `Q₀ = Q₀ᵀ` is the *n×n* objective quadratic term,
+* `aᵢ` is the *i*-th row of the constraint matrix, `Qᵢ = Qᵢᵀ` is the *n×n* quadratic term for constraint *i*,
+* `L`, `U` ∈ ℝᵐ are constraint lower and upper bounds, respectively
+* `ℓ`, `u` ∈ ℝⁿ are variable lower and upper bounds, respectively
+
+Mixed-integer problems are supported, but semi-continuous and semi-integer variables are not.
 
 Mixed-integer problems are supported, but semi-continuous and semi-integer variables are not.
 
@@ -86,6 +88,9 @@ mutable struct QPSData
     arows::Vector{Int}
     acols::Vector{Int}
     avals::Vector{Float64}
+
+    # Quadratic Constraints Data
+    qcdata::Dict{Int, Tuple{Vector{Int}, Vector{Int}, Vector{Float64}}}
 
     lcon::Vector{Float64}            # constraints lower bounds
     ucon::Vector{Float64}            # constraints upper bounds
