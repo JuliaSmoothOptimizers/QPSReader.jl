@@ -4,7 +4,6 @@ A package to read linear optimization problems in MPS format and quadratic optim
 
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.3996203-blue.svg)](https://doi.org/10.5281/zenodo.3996203)
 ![CI](https://github.com/JuliaSmoothOptimizers/QPSReader.jl/workflows/CI/badge.svg?branch=main)
-[![Build Status](https://api.cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl.svg)](https://cirrus-ci.com/github/JuliaSmoothOptimizers/QPSReader.jl)
 [![codecov.io](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl/coverage.svg?branch=main)](https://codecov.io/github/JuliaSmoothOptimizers/QPSReader.jl?branch=main)
 [![Documentation/stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaSmoothOptimizers.github.io/QPSReader.jl/stable)
 [![Documentation/dev](https://img.shields.io/badge/docs-latest-blue.svg)](https://JuliaSmoothOptimizers.github.io/QPSReader.jl/dev)
