@@ -70,6 +70,9 @@ mutable struct QPSData
   acols::Vector{Int}
   avals::Vector{Float64}
 
+  # Quadratic Constraints Data
+  qcdata::Dict{Int, Tuple{Vector{Int}, Vector{Int}, Vector{Float64}}}
+
   lcon::Vector{Float64}            # constraints lower bounds
   ucon::Vector{Float64}            # constraints upper bounds
   lvar::Vector{Float64}            # variables lower bounds
@@ -110,6 +113,7 @@ mutable struct QPSData
     Int[],
     Int[],
     Float64[],
+    Dict{Int, Tuple{Vector{Int}, Vector{Int}, Vector{Float64}}}(), 
     Float64[],
     Float64[],
     Float64[],
@@ -166,6 +170,7 @@ const BOUNDS = 6
 const RANGES = 7
 const QUADOBJ = 8
 const OBJECT_BOUND = 10
+const QCMATRIX = 11  
 
 const SECTION_HEADERS = Dict{String, Int}(
   "ENDATA" => ENDATA,
@@ -179,6 +184,7 @@ const SECTION_HEADERS = Dict{String, Int}(
   "QUADOBJ" => QUADOBJ,
   "QMATRIX" => QUADOBJ,
   "OBJECT BOUND" => OBJECT_BOUND,  # SIF only
+  "QCMATRIX" => QCMATRIX,  # QPS only
 )
 
 """
@@ -231,8 +237,13 @@ function read_card!(card::MPSCard{FixedMPS}, ln::String)
       else
         error("Unrecognized section header: $ln")
       end
+    elseif card.f1 == "QCMATRIX"
+        # QCMATRIX requires a row name as the second argument
+        if length(s) >= 2
+            card.f2 = String(s[2])
+            card.nfields = 2
+        end
     end
-
     return card
   end
 
@@ -340,6 +351,12 @@ function read_card!(card::MPSCard{FreeMPS}, ln::String)
       else
         error("Unrecognized section header: $ln")
       end
+    elseif card.f1 == "QCMATRIX"
+        # QCMATRIX requires a row name as the second argument
+        if length(s) >= 2
+            card.f2 = String(s[2])
+            card.nfields = 2
+        end
     end
 
   else
@@ -753,6 +770,35 @@ function read_quadobj_line!(qps::QPSData, card::MPSCard)
   return nothing
 end
 
+"""
+    read_qcmatrix_line!
+
+Reads a line from the QCMATRIX section.
+"""
+function read_qcmatrix_line!(qps::QPSData, card::MPSCard, row_idx::Int)
+  # Sanity check
+  card.nfields >= 3 || error("Line $(card.nline) contains only $(card.nfields) fields")
+
+  colname = card.f1
+  rowname = card.f2 # Note: In MPS matrix format, f2 is the second variable
+  val = parse(Float64, card.f3)
+
+  col = get(qps.varindices, colname, 0)
+  col > 0 || error("Unknown variable $colname in QCMATRIX")
+  row = get(qps.varindices, rowname, 0)
+  row > 0 || error("Unknown variable $rowname in QCMATRIX")
+
+  # Retrieve or initialize the storage vectors for this specific constraint
+  # qcdata stores (row_indices, col_indices, values)
+  (qr, qc, qv) = qps.qcdata[row_idx]
+  
+  push!(qr, row) # Variable index 1
+  push!(qc, col) # Variable index 2
+  push!(qv, val) # Value
+
+  return nothing
+end
+
 function readqps(filename::String; mpsformat::Symbol = :free)
   open(filename, "r") do qps
     return readqps(qps; mpsformat = mpsformat)
@@ -787,6 +833,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
   qpsdat = QPSData()
 
   seekstart(qps)
+  current_qc_row_idx = -1  # To track which constraint we are reading in QCMATRIX
   while !eof(qps)
     line = readline(qps)
     read_card!(card, line)
@@ -794,7 +841,7 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
     card.nline += 1
 
     card.iscomment && continue
-
+  
     if card.isheader
       sec = section_header(card.f1)
       if sec == NAME
@@ -831,6 +878,30 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
         quadobj_section_read && error("more than one QUADOBJ section specified")
         columns_section_read || error("COLUMNS section must come before QUADOBJ section")
         quadobj_section_read = true
+      elseif sec == QCMATRIX
+        # QCMATRIX section handling
+        columns_section_read || error("COLUMNS section must come before QCMATRIX section")
+        
+        # Extract row name from card.f2
+        rowname = card.f2
+        if isempty(rowname)
+             error("QCMATRIX section header missing constraint name at line $(card.nline)")
+        end
+        
+        idx = get(qpsdat.conindices, rowname, -2)
+        if idx <= 0
+            error("Unknown constraint '$rowname' in QCMATRIX at line $(card.nline)")
+        end
+        
+        current_qc_row_idx = idx
+        
+        # Initialize the storage tuple for this constraint if it doesn't exist
+        if !haskey(qpsdat.qcdata, idx)
+            qpsdat.qcdata[idx] = (Int[], Int[], Float64[])
+        else 
+            @warn "Duplicate QCMATRIX section for $rowname, appending data."
+        end
+        
       elseif sec == ENDATA
         endata_read && error("more than one ENDATA section specified")
         endata_read = true
@@ -868,6 +939,8 @@ function readqps(qps::IO; mpsformat::Symbol = :free)
       read_ranges_line!(qpsdat, card)
     elseif sec == QUADOBJ
       read_quadobj_line!(qpsdat, card)
+    elseif sec == QCMATRIX
+      read_qcmatrix_line!(qpsdat, card, current_qc_row_idx)
     else
       error("Unexpected section $sec in line\n$line")
     end
